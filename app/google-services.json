@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "294255605490",
+    "project_id": "lifeos-b74fe",
+    "storage_bucket": "lifeos-b74fe.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:294255605490:android:62d9e19416a7ae1879026b",
+        "android_client_info": {
+          "package_name": "com.lifeos.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "294255605490-p7nvp9s3j1d1obd93oqklprisfqh1qfa.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.lifeos.app",
+            "certificate_hash": "3371e34b16a3197fb829f9680262fea8456c1024"
+          }
+        },
+        {
+          "client_id": "294255605490-dn0l52gqv0n28um5pgukvuqnanrnd4s2.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDSib-KG0OhmdrLFuf5NWTvuysk5jGy290"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "294255605490-dn0l52gqv0n28um5pgukvuqnanrnd4s2.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
