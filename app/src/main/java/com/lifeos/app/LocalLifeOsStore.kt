@@ -9,7 +9,7 @@ class LocalLifeOsStore(context: Context) {
 
     fun readSnapshot(userId: String, fallback: LifeOsSnapshot): LifeOsSnapshot {
         val raw = preferences.getString(snapshotKey(userId), null) ?: return fallback
-        return runCatching { decodeSnapshot(JSONObject(raw), fallback) }.getOrDefault(fallback)
+        return runCatching { decodeSnapshot(JSONObject(raw), fallback).removeLegacyDemoRecords() }.getOrDefault(fallback)
     }
 
     fun saveSnapshot(userId: String, snapshot: LifeOsSnapshot) {
@@ -38,6 +38,13 @@ class LocalLifeOsStore(context: Context) {
     }
 
     private fun JSONObject.string(key: String): String = optString(key, "")
+
+    private fun LifeOsSnapshot.removeLegacyDemoRecords(): LifeOsSnapshot = copy(
+        tasks = tasks.filterNot { it.id in setOf("task-1", "task-2", "task-3") },
+        events = events.filterNot { it.id in setOf("event-1", "event-2") },
+        notes = notes.filterNot { it.id in setOf("note-1", "note-2") },
+        reminders = reminders.filterNot { it.id in setOf("reminder-1", "reminder-2") }
+    )
 
     private fun snapshotKey(userId: String): String = "$KEY_SNAPSHOT_PREFIX$userId"
 

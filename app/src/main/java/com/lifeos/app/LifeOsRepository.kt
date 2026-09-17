@@ -60,27 +60,13 @@ interface LifeOsRepository {
 class InMemoryLifeOsRepository : LifeOsRepository {
     private val snapshot = MutableStateFlow(
         LifeOsSnapshot(
-            tasks = listOf(
-                LifeOsTask("task-1", "Plan the week", "Today, 9:00 AM"),
-                LifeOsTask("task-2", "Review product notes", "Today, 2:30 PM"),
-                LifeOsTask("task-3", "Evening walk", "Today, 6:00 PM")
-            ),
-            events = listOf(
-                LifeOsEvent("event-1", "Design sync", "10:30 AM", "coral"),
-                LifeOsEvent("event-2", "Dentist appointment", "3:00 PM", "teal")
-            ),
-            notes = listOf(
-                LifeOsNote("note-1", "Ideas for a calmer morning", "Build a gentle start that leaves room for focus...", "Edited 12 min ago"),
-                LifeOsNote("note-2", "Books to read", "Deep Work, The Creative Act, Atomic Habits", "Edited yesterday")
-            ),
+            tasks = emptyList(),
+            events = emptyList(),
+            notes = emptyList(),
             expenses = listOf(
-                LifeOsExpense("expense-1", "Whole Foods Market", "Groceries", "$48.20"),
-                LifeOsExpense("expense-2", "Spotify", "Subscriptions", "$11.99")
+                
             ),
-            reminders = listOf(
-                LifeOsReminder("reminder-1", "Take a screen break", "In 25 minutes"),
-                LifeOsReminder("reminder-2", "Call Mom", "Tomorrow, 7:00 PM")
-            )
+            reminders = emptyList()
         )
     )
 
@@ -106,6 +92,7 @@ class InMemoryLifeOsRepository : LifeOsRepository {
 class FirebaseLifeOsRepository(context: Context) : LifeOsRepository {
     private val fallback = InMemoryLifeOsRepository()
     private val localStore = LocalLifeOsStore(context)
+    private val profileStore = ProfileStore(context)
     private val snapshot = MutableStateFlow(fallbackSnapshot())
     private val auth = FirebaseAuth.getInstance()
     private val firestore = FirebaseFirestore.getInstance()
@@ -152,7 +139,16 @@ class FirebaseLifeOsRepository(context: Context) : LifeOsRepository {
 
         val userDocument = firestore.collection("users").document(userId)
         val batch = firestore.batch()
-        batch.set(userDocument, mapOf("lastSyncedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()), com.google.firebase.firestore.SetOptions.merge())
+        val profile = profileStore.read(userId)
+        batch.set(userDocument, mapOf(
+            "firstName" to profile.firstName,
+            "lastName" to profile.lastName,
+            "username" to profile.username,
+            "email" to profile.email,
+            "goal" to profile.goal,
+            "notificationsEnabled" to profile.notificationsEnabled,
+            "lastSyncedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+        ), com.google.firebase.firestore.SetOptions.merge())
         syncCollection(batch, userDocument, "tasks", snapshot.value.tasks.map { it.id to mapOf("title" to it.title, "dueLabel" to it.dueLabel, "completed" to it.completed) })
         syncCollection(batch, userDocument, "events", snapshot.value.events.map { it.id to mapOf("title" to it.title, "timeLabel" to it.timeLabel, "colorKey" to it.colorKey) })
         syncCollection(batch, userDocument, "notes", snapshot.value.notes.map { it.id to mapOf("title" to it.title, "preview" to it.preview, "updatedLabel" to it.updatedLabel) })
@@ -235,25 +231,11 @@ class FirebaseLifeOsRepository(context: Context) : LifeOsRepository {
 
 private fun InMemoryLifeOsRepository.observeSnapshotValue(): LifeOsSnapshot =
     LifeOsSnapshot(
-        tasks = listOf(
-            LifeOsTask("task-1", "Plan the week", "Today, 9:00 AM"),
-            LifeOsTask("task-2", "Review product notes", "Today, 2:30 PM"),
-            LifeOsTask("task-3", "Evening walk", "Today, 6:00 PM")
-        ),
-        events = listOf(
-            LifeOsEvent("event-1", "Design sync", "10:30 AM", "coral"),
-            LifeOsEvent("event-2", "Dentist appointment", "3:00 PM", "teal")
-        ),
-        notes = listOf(
-            LifeOsNote("note-1", "Ideas for a calmer morning", "Build a gentle start that leaves room for focus...", "Edited 12 min ago"),
-            LifeOsNote("note-2", "Books to read", "Deep Work, The Creative Act, Atomic Habits", "Edited yesterday")
-        ),
+        tasks = emptyList(),
+        events = emptyList(),
+        notes = emptyList(),
         expenses = listOf(
-            LifeOsExpense("expense-1", "Whole Foods Market", "Groceries", "$48.20"),
-            LifeOsExpense("expense-2", "Spotify", "Subscriptions", "$11.99")
+            
         ),
-        reminders = listOf(
-            LifeOsReminder("reminder-1", "Take a screen break", "In 25 minutes"),
-            LifeOsReminder("reminder-2", "Call Mom", "Tomorrow, 7:00 PM")
-        )
+        reminders = emptyList()
     )

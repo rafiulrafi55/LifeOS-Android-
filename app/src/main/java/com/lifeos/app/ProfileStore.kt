@@ -3,34 +3,48 @@ package com.lifeos.app
 import android.content.Context
 
 data class LifeOsProfile(
-    val firstName: String = "Alex",
-    val lastName: String = "Morgan",
-    val username: String = "alexmorgan",
-    val email: String = "alex@example.com",
-    val goal: String = "Create more calm and focus",
+    val firstName: String = "",
+    val lastName: String = "",
+    val username: String = "",
+    val email: String = "",
+    val goal: String = "",
     val notificationsEnabled: Boolean = true
 )
 
 class ProfileStore(context: Context) {
     private val preferences = context.getSharedPreferences("lifeos_profile", Context.MODE_PRIVATE)
 
-    fun read(): LifeOsProfile = LifeOsProfile(
-        firstName = preferences.getString("firstName", "Alex") ?: "Alex",
-        lastName = preferences.getString("lastName", "Morgan") ?: "Morgan",
-        username = preferences.getString("username", "alexmorgan") ?: "alexmorgan",
-        email = preferences.getString("email", "alex@example.com") ?: "alex@example.com",
-        goal = preferences.getString("goal", "Create more calm and focus") ?: "Create more calm and focus",
-        notificationsEnabled = preferences.getBoolean("notificationsEnabled", true)
+    fun read(userId: String): LifeOsProfile = LifeOsProfile(
+        firstName = preferences.getString("${userId}_firstName", "") ?: "",
+        lastName = preferences.getString("${userId}_lastName", "") ?: "",
+        username = preferences.getString("${userId}_username", "") ?: "",
+        email = preferences.getString("${userId}_email", "") ?: "",
+        goal = preferences.getString("${userId}_goal", "") ?: "",
+        notificationsEnabled = preferences.getBoolean("${userId}_notificationsEnabled", true)
     )
 
-    fun save(profile: LifeOsProfile) {
+    fun save(userId: String, profile: LifeOsProfile) {
         preferences.edit()
-            .putString("firstName", profile.firstName)
-            .putString("lastName", profile.lastName)
-            .putString("username", profile.username)
-            .putString("email", profile.email)
-            .putString("goal", profile.goal)
-            .putBoolean("notificationsEnabled", profile.notificationsEnabled)
+            .putString("${userId}_firstName", profile.firstName)
+            .putString("${userId}_lastName", profile.lastName)
+            .putString("${userId}_username", profile.username)
+            .putString("${userId}_email", profile.email)
+            .putString("${userId}_goal", profile.goal)
+            .putBoolean("${userId}_notificationsEnabled", profile.notificationsEnabled)
             .apply()
+    }
+
+    fun recordActiveDay(userId: String): Int {
+        val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+        val lastActiveDay = preferences.getString("${userId}_lastActiveDay", null)
+        var activeDays = preferences.getInt("${userId}_activeDays", 0)
+        if (lastActiveDay != today) {
+            activeDays += 1
+            preferences.edit()
+                .putString("${userId}_lastActiveDay", today)
+                .putInt("${userId}_activeDays", activeDays)
+                .apply()
+        }
+        return activeDays
     }
 }

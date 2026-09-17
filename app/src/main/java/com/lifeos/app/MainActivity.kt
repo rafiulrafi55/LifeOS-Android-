@@ -1,7 +1,6 @@
 package com.lifeos.app
 
 import android.os.Bundle
-import android.content.Intent
 import android.content.Context
 import android.app.Activity
 import androidx.activity.ComponentActivity
@@ -9,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -33,10 +33,13 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -44,9 +47,9 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -59,6 +62,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -69,20 +73,26 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberTimePickerState
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountBalanceWallet
-import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Note
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 
 private val Ink = Color(0xFF1C2824)
 private val Moss = Color(0xFF2E6B58)
-private val Mint = Color(0xFFE5F0E8)
 private val Coral = Color(0xFFE67B62)
 private val Sand = Color(0xFFF8F6F0)
 private val Teal = Color(0xFF4B9D99)
@@ -93,7 +103,7 @@ private const val GoogleWebClientId = "294255605490-p7nvp9s3j1d1obd93oqklprisfqh
 
 class MainActivity : ComponentActivity() {
     private val repository: LifeOsRepository by lazy { FirebaseLifeOsRepository(applicationContext) }
-    private val authRepository = AuthRepository()
+    private val authRepository by lazy { AuthRepository(applicationContext) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -102,8 +112,8 @@ class MainActivity : ComponentActivity() {
 }
 
 private enum class LifeOsModule(val label: String, val icon: ImageVector) {
-    Dashboard("Home", Icons.Filled.Home), Tasks("Tasks", Icons.Filled.Check), Calendar("Calendar", Icons.Filled.CalendarToday),
-    Notes("Notes", Icons.Filled.EditNote), Expenses("Money", Icons.Filled.AccountBalanceWallet), Reminders("Reminders", Icons.Filled.Notifications), Profile("Profile", Icons.Filled.Person)
+    Dashboard("Home", Icons.Filled.Home), Tasks("Tasks", Icons.Filled.Check), Calendar("Calendar", Icons.Filled.Event),
+    Notes("Notes", Icons.Filled.Note), Expenses("Money", Icons.Filled.AttachMoney), Reminders("Reminders", Icons.Filled.Notifications), Profile("Profile", Icons.Filled.Person)
 }
 
 @Composable
@@ -124,6 +134,8 @@ private fun LifeOsApp(repository: LifeOsRepository, authRepository: AuthReposito
     val snapshot by repository.observeSnapshot().collectAsState(
         initial = LifeOsSnapshot(emptyList(), emptyList(), emptyList(), emptyList(), emptyList())
     )
+    val context = LocalContext.current
+    val profile = authRepository.currentUserId?.let { ProfileStore(context).read(it) } ?: LifeOsProfile()
 
     MaterialTheme(
         colorScheme = androidx.compose.material3.lightColorScheme(
@@ -137,18 +149,27 @@ private fun LifeOsApp(repository: LifeOsRepository, authRepository: AuthReposito
                 TopAppBar(title = {
                     Column {
                         Text("LifeOS", fontWeight = FontWeight.Bold)
-                        Text(if (selectedModule == LifeOsModule.Dashboard) "Thursday, September 17" else selectedModule.label, style = MaterialTheme.typography.labelMedium, color = Moss)
+                        Text(if (selectedModule == LifeOsModule.Dashboard) currentDateLabel() else selectedModule.label, style = MaterialTheme.typography.labelMedium, color = Moss)
                     }
                 })
             },
             bottomBar = {
-                NavigationBar(containerColor = Color.White) {
+                NavigationBar(modifier = Modifier.padding(horizontal = 8.dp), containerColor = Color.White, tonalElevation = 0.dp) {
                     LifeOsModule.entries.forEach { module ->
                         NavigationBarItem(
                             selected = selectedModule == module,
                             onClick = { selectedModule = module },
-                            icon = { Box(Modifier.size(32.dp).clip(CircleShape).background(if (selectedModule == module) OrangePale else Color.Transparent), contentAlignment = Alignment.Center) { Icon(module.icon, contentDescription = module.label, tint = if (selectedModule == module) OrangeDeep else Color(0xFF63706A), modifier = Modifier.size(19.dp)) } },
-                            label = { Text(module.label) }
+                            icon = {
+                                Box(
+                                    Modifier
+                                        .size(34.dp)
+                                        .shadow(if (selectedModule == module) 5.dp else 0.dp, CircleShape, clip = false)
+                                        .clip(CircleShape)
+                                        .background(if (selectedModule == module) OrangePale else Color.Transparent),
+                                    contentAlignment = Alignment.Center
+                                ) { Icon(module.icon, contentDescription = module.label, tint = if (selectedModule == module) OrangeDeep else Color(0xFF63706A), modifier = Modifier.size(19.dp)) }
+                            },
+                            alwaysShowLabel = false
                         )
                     }
                 }
@@ -156,13 +177,13 @@ private fun LifeOsApp(repository: LifeOsRepository, authRepository: AuthReposito
         ) { paddingValues ->
             Box(Modifier.padding(paddingValues)) {
                 when (selectedModule) {
-                    LifeOsModule.Dashboard -> DashboardScreen(snapshot) { selectedModule = it }
+                    LifeOsModule.Dashboard -> DashboardScreen(snapshot, LocalContext.current, profile.firstName) { selectedModule = it }
                     LifeOsModule.Tasks -> TasksScreen(snapshot.tasks, repository)
                     LifeOsModule.Calendar -> CalendarScreen(snapshot.events, repository)
                     LifeOsModule.Notes -> NotesScreen(snapshot.notes, repository)
-                    LifeOsModule.Expenses -> ExpensesScreen(snapshot.expenses, repository)
+                    LifeOsModule.Expenses -> ExpensesScreen(snapshot.expenses, repository, LocalContext.current)
                     LifeOsModule.Reminders -> RemindersScreen(snapshot.reminders, repository)
-                    LifeOsModule.Profile -> ProfileScreen(authRepository, repository, LocalContext.current)
+                    LifeOsModule.Profile -> ProfileScreen(authRepository, repository, snapshot, LocalContext.current)
                 }
             }
         }
@@ -399,13 +420,28 @@ private fun validateSignUp(
     return null
 }
 
+private fun currentDateLabel(): String =
+    SimpleDateFormat("EEEE, MMMM d", Locale.US).format(Date())
+
+private fun currentDateStrip(): List<String> {
+    val formatter = SimpleDateFormat("EE d", Locale.US)
+    val today = Calendar.getInstance()
+    return (-2..2).map { offset ->
+        Calendar.getInstance().apply {
+            timeInMillis = today.timeInMillis
+            add(Calendar.DAY_OF_YEAR, offset)
+        }.timeInMillis.let { formatter.format(Date(it)) }
+    }
+}
+
 @Composable
-private fun DashboardScreen(snapshot: LifeOsSnapshot, onModuleSelected: (LifeOsModule) -> Unit) {
+private fun DashboardScreen(snapshot: LifeOsSnapshot, context: Context, displayName: String, onModuleSelected: (LifeOsModule) -> Unit) {
+    val currency = remember(context) { CurrencyStore(context).read() }
     Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFFFFF5EC), Color(0xFFFFE5D2), Sand)))) {
         LazyColumn(Modifier.fillMaxSize().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item {
                 Spacer(Modifier.height(8.dp))
-                Text("Good morning, Alex", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Ink)
+                Text("Good morning${if (displayName.isBlank()) "" else ", $displayName"}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Ink)
                 Text("A clear day starts with a clear view.", color = Color(0xFF63706A))
             }
             item {
@@ -443,8 +479,8 @@ private fun DashboardScreen(snapshot: LifeOsSnapshot, onModuleSelected: (LifeOsM
                 SectionHeader("Money this month", "View expenses") { onModuleSelected(LifeOsModule.Expenses) }
                 Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
                     Row(Modifier.fillMaxWidth().padding(20.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Column { Text("Total spending", color = Color(0xFF63706A)); Text("$842.60", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Ink) }
-                        Text("↓ 12%", color = OrangeDeep, fontWeight = FontWeight.Bold)
+                        Column { Text("Total spending", color = Color(0xFF63706A)); Text(formatLifeOsAmount(totalLifeOsExpenses(snapshot.expenses).toString(), currency), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Ink) }
+                        Text("${snapshot.expenses.size} entries", color = OrangeDeep, fontWeight = FontWeight.Bold)
                     }
                 }
                 Spacer(Modifier.height(20.dp))
@@ -464,20 +500,23 @@ private fun TasksScreen(tasks: List<LifeOsTask>, repository: LifeOsRepository) {
         }
     }
     if (showAddTask) {
-        LifeOsEntryDialog("Add a task", listOf("Task title", "Due time"), { showAddTask = false }) { values ->
-            repository.updateSnapshot { it.copy(tasks = it.tasks + LifeOsTask("task-${System.currentTimeMillis()}", values[0], values[1])) }
-            showAddTask = false
-        }
+        TaskDialog(
+            onDismiss = { showAddTask = false },
+            onSave = { title, dueLabel ->
+                repository.updateSnapshot { it.copy(tasks = it.tasks + LifeOsTask("task-${System.currentTimeMillis()}", title, dueLabel)) }
+                showAddTask = false
+            }
+        )
     }
 }
 
 @Composable
 private fun CalendarScreen(events: List<LifeOsEvent>, repository: LifeOsRepository) {
     var showAddEvent by remember { mutableStateOf(false) }
-    ModuleColumn("Your calendar", "Thursday, September 17") {
+    ModuleColumn("Your calendar", currentDateLabel()) {
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
             Row(Modifier.fillMaxWidth().padding(18.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                listOf("M 15", "T 16", "W 17", "T 18", "F 19").forEachIndexed { index, day ->
+                currentDateStrip().forEachIndexed { index, day ->
                     Box(Modifier.size(48.dp).clip(CircleShape).background(if (index == 2) OrangeDeep else Color.Transparent), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(day.take(1), color = if (index == 2) OrangePale else Color(0xFF63706A), fontSize = 12.sp); Text(day.drop(2), fontWeight = if (index == 2) FontWeight.Bold else FontWeight.Normal, color = if (index == 2) Color.White else Ink) }
                     }
@@ -492,18 +531,31 @@ private fun CalendarScreen(events: List<LifeOsEvent>, repository: LifeOsReposito
         }
     }
     if (showAddEvent) {
-        LifeOsEntryDialog("Add an event", listOf("Event title", "Time", "Color: coral or teal"), { showAddEvent = false }) { values ->
-            repository.updateSnapshot { it.copy(events = it.events + LifeOsEvent("event-${System.currentTimeMillis()}", values[0], values[1], if (values[2].lowercase() == "teal") "teal" else "coral")) }
-            showAddEvent = false
-        }
+        EventDialog(
+            onDismiss = { showAddEvent = false },
+            onSave = { title, timeLabel, colorKey ->
+                repository.updateSnapshot { it.copy(events = it.events + LifeOsEvent("event-${System.currentTimeMillis()}", title, timeLabel, colorKey)) }
+                showAddEvent = false
+            }
+        )
     }
 }
 
 @Composable
 private fun NotesScreen(notes: List<LifeOsNote>, repository: LifeOsRepository) {
-    var showAddNote by remember { mutableStateOf(false) }
+    var editingNote by remember { mutableStateOf(false) }
+    if (editingNote) {
+        NoteEditorScreen(
+            onBack = { editingNote = false },
+            onSave = { title, body ->
+                repository.updateSnapshot { it.copy(notes = it.notes + LifeOsNote("note-${System.currentTimeMillis()}", title, body, "Edited just now")) }
+                editingNote = false
+            }
+        )
+        return
+    }
     ModuleColumn("Notes", "Capture thoughts before they drift away.") {
-        Button(onClick = { showAddNote = true }, Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)) { Text("+  New note") }
+        Button(onClick = { editingNote = true }, Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)) { Text("+  New note") }
         Spacer(Modifier.height(16.dp))
         notes.forEach { note ->
             Card(Modifier.fillMaxWidth().padding(bottom = 12.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
@@ -511,21 +563,49 @@ private fun NotesScreen(notes: List<LifeOsNote>, repository: LifeOsRepository) {
             }
         }
     }
-    if (showAddNote) {
-        LifeOsEntryDialog("New note", listOf("Title", "Note"), { showAddNote = false }) { values ->
-            repository.updateSnapshot { it.copy(notes = it.notes + LifeOsNote("note-${System.currentTimeMillis()}", values[0], values[1], "Edited just now")) }
-            showAddNote = false
+}
+
+@Composable
+private fun NoteEditorScreen(onBack: () -> Unit, onSave: (String, String) -> Unit) {
+    var title by remember { mutableStateOf("") }
+    var body by remember { mutableStateOf("") }
+    Box(Modifier.fillMaxSize().background(Sand)) {
+        Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 12.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Ink) }
+                Text("New note", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
+                TextButton(onClick = { if (title.isNotBlank() && body.isNotBlank()) onSave(title, body) }) { Text("Save", color = OrangeDeep, fontWeight = FontWeight.Bold) }
+            }
+            Spacer(Modifier.height(16.dp))
+            OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(14.dp))
+            Card(Modifier.fillMaxSize(), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(22.dp)) {
+                BasicTextField(
+                    value = body,
+                    onValueChange = { body = it },
+                    modifier = Modifier.fillMaxSize().padding(20.dp),
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = Ink, lineHeight = 26.sp),
+                    decorationBox = { innerTextField ->
+                        if (body.isBlank()) Text("Start writing...", color = Color(0xFF9A928C), style = MaterialTheme.typography.bodyLarge)
+                        innerTextField()
+                    }
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun ExpensesScreen(expenses: List<LifeOsExpense>, repository: LifeOsRepository) {
+private fun ExpensesScreen(expenses: List<LifeOsExpense>, repository: LifeOsRepository, context: Context) {
+    var currency by remember(context) { mutableStateOf(CurrencyStore(context).read()) }
+    var showCurrencyDialog by remember { mutableStateOf(false) }
     var showAddExpense by remember { mutableStateOf(false) }
     ModuleColumn("Money", "A calmer view of your spending.") {
         Card(modifier = Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(OrangeDeep, Orange)), RoundedCornerShape(20.dp)), colors = CardDefaults.cardColors(containerColor = Color.Transparent), shape = RoundedCornerShape(20.dp)) {
-            Column(Modifier.fillMaxWidth().padding(20.dp)) { Text("SEPTEMBER SPENDING", color = OrangePale, style = MaterialTheme.typography.labelMedium, letterSpacing = 1.sp); Spacer(Modifier.height(7.dp)); Text("$842.60", color = Color.White, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold); Text("$157.40 left in your weekly budget", color = Color.White.copy(alpha = 0.78f)) }
+            Column(Modifier.fillMaxWidth().padding(20.dp)) { Text("SEPTEMBER SPENDING", color = OrangePale, style = MaterialTheme.typography.labelMedium, letterSpacing = 1.sp); Spacer(Modifier.height(7.dp)); Text(formatLifeOsAmount(totalLifeOsExpenses(expenses).toString(), currency), color = Color.White, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold); Text("${expenses.size} recorded entries", color = Color.White.copy(alpha = 0.78f)) }
         }
+        Spacer(Modifier.height(16.dp))
+        OutlinedButton(onClick = { showCurrencyDialog = true }, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(15.dp), border = androidx.compose.foundation.BorderStroke(1.dp, OrangePale)) { Text("Currency: ${currency.code} (${currency.symbol})", color = OrangeDeep) }
         Spacer(Modifier.height(16.dp))
         Button(onClick = { showAddExpense = true }, Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)) { Text("+  Add expense") }
         Spacer(Modifier.height(16.dp))
@@ -533,8 +613,8 @@ private fun ExpensesScreen(expenses: List<LifeOsExpense>, repository: LifeOsRepo
             Column(Modifier.padding(horizontal = 18.dp, vertical = 12.dp)) {
                 Text("Recent activity", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 expenses.forEach { expense ->
-                    Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), horizontalArrangement = Arrangement.SpaceBetween) { Column { Text(expense.merchant, fontWeight = FontWeight.SemiBold); Text(expense.category, color = Color(0xFF63706A), style = MaterialTheme.typography.labelMedium) }; Text(expense.amount, fontWeight = FontWeight.Bold, color = OrangeDeep) }
-                    Divider(color = Color(0xFFE3E8E3))
+                    Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), horizontalArrangement = Arrangement.SpaceBetween) { Column { Text(expense.merchant, fontWeight = FontWeight.SemiBold); Text(expense.category, color = Color(0xFF63706A), style = MaterialTheme.typography.labelMedium) }; Text(formatLifeOsAmount(expense.amount, currency), fontWeight = FontWeight.Bold, color = OrangeDeep) }
+                    HorizontalDivider(color = Color(0xFFE3E8E3))
                 }
             }
         }
@@ -544,6 +624,13 @@ private fun ExpensesScreen(expenses: List<LifeOsExpense>, repository: LifeOsRepo
             repository.updateSnapshot { it.copy(expenses = it.expenses + LifeOsExpense("expense-${System.currentTimeMillis()}", values[0], values[1], values[2])) }
             showAddExpense = false
         }
+    }
+    if (showCurrencyDialog) {
+        AlertDialog(onDismissRequest = { showCurrencyDialog = false }, title = { Text("Choose currency", fontWeight = FontWeight.Bold) }, text = {
+            Column { LifeOsCurrencies.forEach { option ->
+                TextButton(onClick = { currency = option; CurrencyStore(context).save(option); showCurrencyDialog = false }, modifier = Modifier.fillMaxWidth()) { Text("${option.symbol}  ${option.code} - ${option.label}", color = if (option.code == currency.code) OrangeDeep else Ink) }
+            } }
+        }, confirmButton = {})
     }
 }
 
@@ -564,17 +651,25 @@ private fun RemindersScreen(reminders: List<LifeOsReminder>, repository: LifeOsR
         }
     }
     if (showAddReminder) {
-        LifeOsEntryDialog("Add a reminder", listOf("Reminder", "When"), { showAddReminder = false }) { values ->
-            repository.updateSnapshot { it.copy(reminders = it.reminders + LifeOsReminder("reminder-${System.currentTimeMillis()}", values[0], values[1])) }
-            showAddReminder = false
-        }
+        ReminderDialog(
+            onDismiss = { showAddReminder = false },
+            onSave = { title, scheduleLabel ->
+                repository.updateSnapshot { it.copy(reminders = it.reminders + LifeOsReminder("reminder-${System.currentTimeMillis()}", title, scheduleLabel)) }
+                showAddReminder = false
+            }
+        )
     }
 }
 
 @Composable
-private fun ProfileScreen(authRepository: AuthRepository? = null, repository: LifeOsRepository? = null, context: Context? = null) {
+private fun ProfileScreen(authRepository: AuthRepository? = null, repository: LifeOsRepository? = null, snapshot: LifeOsSnapshot = LifeOsSnapshot(emptyList(), emptyList(), emptyList(), emptyList(), emptyList()), context: Context? = null) {
     val profileStore = remember(context) { context?.let(::ProfileStore) }
-    var profile by remember { mutableStateOf(profileStore?.read() ?: LifeOsProfile()) }
+    val userId = authRepository?.currentUserId
+    var profile by remember(userId) { mutableStateOf(if (userId != null) profileStore?.read(userId) ?: LifeOsProfile() else LifeOsProfile()) }
+    val activeDays = remember(userId) { userId?.let { profileStore?.recordActiveDay(it) } ?: 0 }
+    val completedTasks = snapshot.tasks.count { it.completed }
+    val taskRhythm = if (snapshot.tasks.isEmpty()) 0 else completedTasks * 100 / snapshot.tasks.size
+    val goalsSet = if (profile.goal.isBlank()) 0 else 1
     var syncMessage by remember { mutableStateOf<String?>(null) }
     var syncing by remember { mutableStateOf(false) }
     var restoring by remember { mutableStateOf(false) }
@@ -591,12 +686,12 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
             Column(Modifier.padding(22.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(72.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.22f)), contentAlignment = Alignment.Center) {
-                        Text("A", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                        Text(profile.firstName.firstOrNull()?.uppercase() ?: "?", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
                     }
                     Spacer(Modifier.width(16.dp))
                     Column {
-                        Text("${profile.firstName} ${profile.lastName}", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text("@${profile.username}", color = OrangePale)
+                        Text("${profile.firstName} ${profile.lastName}".trim().ifBlank { "Your profile" }, color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text(if (profile.username.isBlank()) "Set up your username" else "@${profile.username}", color = OrangePale)
                         Text(profile.email, color = Color.White.copy(alpha = 0.78f), style = MaterialTheme.typography.labelMedium)
                     }
                 }
@@ -606,15 +701,15 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
         }
         Spacer(Modifier.height(18.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ProfileStat("12", "DAYS ACTIVE", Modifier.weight(1f))
-            ProfileStat("84%", "WEEKLY RHYTHM", Modifier.weight(1f))
-            ProfileStat("6", "GOALS", Modifier.weight(1f))
+            ProfileStat(activeDays.toString(), "DAYS ACTIVE", Modifier.weight(1f))
+            ProfileStat("$taskRhythm%", "TASK RHYTHM", Modifier.weight(1f))
+            ProfileStat(goalsSet.toString(), "GOALS SET", Modifier.weight(1f))
         }
         Spacer(Modifier.height(24.dp))
         Text("Personal space", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Ink)
         Spacer(Modifier.height(8.dp))
         ProfileOption("Personal details", "Name, email and account", "A") { showProfileEdit = true }
-        ProfileOption("Goals and preferences", profile.goal, "G") { showGoalEdit = true }
+        ProfileOption("Goals and preferences", profile.goal.ifBlank { "Add your primary goal" }, "G") { showGoalEdit = true }
         ProfileOption("Notifications", if (profile.notificationsEnabled) "Reminders are enabled" else "Reminders are muted", "N") { showNotifications = true }
         ProfileOption("Connected services", "Google and other tools", "C") { showConnectedServices = !showConnectedServices }
         if (showConnectedServices) {
@@ -633,9 +728,34 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
                 onRestore = {
                     restoring = true
                     syncMessage = null
-                    repository?.restoreFromFirebase { result ->
+                    var moduleResult: Result<Unit>? = null
+                    var profileResult: Result<LifeOsProfile>? = null
+                    fun finishRestoreIfReady() {
+                        if (moduleResult == null || profileResult == null) return
+                        profileResult?.getOrNull()?.let { profile = it }
                         restoring = false
-                        syncMessage = result.fold({ "Firebase data restored to this device." }, { it.message ?: "Restore failed. Try again." })
+                        syncMessage = if (moduleResult!!.isSuccess && profileResult!!.isSuccess) {
+                            "Firebase data and profile restored to this device."
+                        } else if (moduleResult!!.isSuccess) {
+                            "LifeOS data restored. Profile restore failed."
+                        } else if (profileResult!!.isSuccess) {
+                            "Profile restored. No full LifeOS backup was found yet."
+                        } else {
+                            moduleResult!!.exceptionOrNull()?.message ?: profileResult!!.exceptionOrNull()?.message ?: "Restore failed. Try again."
+                        }
+                    }
+                    repository?.restoreFromFirebase { result ->
+                        moduleResult = result
+                        finishRestoreIfReady()
+                    } ?: run {
+                        moduleResult = Result.failure(IllegalStateException("Local data repository unavailable."))
+                    }
+                    authRepository?.restoreProfile { result ->
+                        profileResult = result
+                        finishRestoreIfReady()
+                    } ?: run {
+                        profileResult = Result.failure(IllegalStateException("Profile repository unavailable."))
+                        finishRestoreIfReady()
                     }
                 }
             )
@@ -644,16 +764,16 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
         OutlinedButton(onClick = { authRepository?.signOut() }, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), border = androidx.compose.foundation.BorderStroke(1.dp, OrangePale)) { Text("Sign out", color = OrangeDeep, fontWeight = FontWeight.SemiBold) }
     }
     if (showProfileEdit) {
-        ProfileEditDialog(profile, { showProfileEdit = false }) { updated -> profile = updated; profileStore?.save(updated); showProfileEdit = false }
+        ProfileEditDialog(profile, { showProfileEdit = false }) { updated -> profile = updated; userId?.let { profileStore?.save(it, updated) }; showProfileEdit = false }
     }
     if (showGoalEdit) {
-        GoalEditDialog(profile.goal, { showGoalEdit = false }) { goal -> profile = profile.copy(goal = goal); profileStore?.save(profile.copy(goal = goal)); showGoalEdit = false }
+        GoalEditDialog(profile.goal, { showGoalEdit = false }) { goal -> profile = profile.copy(goal = goal); userId?.let { profileStore?.save(it, profile.copy(goal = goal)) }; showGoalEdit = false }
     }
     if (showNotifications) {
         AlertDialog(
             onDismissRequest = { showNotifications = false },
             title = { Text("Notifications", fontWeight = FontWeight.Bold) },
-            text = { Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(profile.notificationsEnabled, { enabled -> profile = profile.copy(notificationsEnabled = enabled); profileStore?.save(profile.copy(notificationsEnabled = enabled)) }); Text("Allow LifeOS reminders and updates", fontWeight = FontWeight.SemiBold) } },
+            text = { Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(profile.notificationsEnabled, { enabled -> profile = profile.copy(notificationsEnabled = enabled); userId?.let { profileStore?.save(it, profile.copy(notificationsEnabled = enabled)) } }); Text("Allow LifeOS reminders and updates", fontWeight = FontWeight.SemiBold) } },
             confirmButton = { TextButton(onClick = { showNotifications = false }) { Text("Done", color = OrangeDeep) } }
         )
     }
@@ -749,6 +869,90 @@ private fun FirebaseSyncPanel(syncing: Boolean, restoring: Boolean, message: Str
             }
         }
     }
+}
+
+@Composable
+private fun TaskDialog(onDismiss: () -> Unit, onSave: (String, String) -> Unit) {
+    var title by remember { mutableStateOf("") }
+    var dueLabel by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add a task", fontWeight = FontWeight.Bold) },
+        text = { Column { AuthField("Task title", title, { title = it }); DateTimePickerField("Due date and time", dueLabel) { dueLabel = it } } },
+        confirmButton = { Button(onClick = { onSave(title, dueLabel) }, enabled = title.isNotBlank() && dueLabel.isNotBlank(), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = OrangeDeep) } }
+    )
+}
+
+@Composable
+private fun EventDialog(onDismiss: () -> Unit, onSave: (String, String, String) -> Unit) {
+    var title by remember { mutableStateOf("") }
+    var timeLabel by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add an event", fontWeight = FontWeight.Bold) },
+        text = { Column { AuthField("Event title", title, { title = it }); DateTimePickerField("Event date and time", timeLabel) { timeLabel = it } } },
+        confirmButton = { Button(onClick = { onSave(title, timeLabel, "coral") }, enabled = title.isNotBlank() && timeLabel.isNotBlank(), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = OrangeDeep) } }
+    )
+}
+
+@Composable
+private fun ReminderDialog(onDismiss: () -> Unit, onSave: (String, String) -> Unit) {
+    var title by remember { mutableStateOf("") }
+    var scheduleLabel by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add a reminder", fontWeight = FontWeight.Bold) },
+        text = { Column { AuthField("Reminder", title, { title = it }); DateTimePickerField("Reminder date and time", scheduleLabel) { scheduleLabel = it } } },
+        confirmButton = { Button(onClick = { onSave(title, scheduleLabel) }, enabled = title.isNotBlank() && scheduleLabel.isNotBlank(), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = OrangeDeep) } }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DateTimePickerField(label: String, value: String, onValueChange: (String) -> Unit) {
+    var showDatePicker by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
+    var selectedDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+    OutlinedButton(onClick = { showDatePicker = true }, modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp), shape = RoundedCornerShape(14.dp), border = androidx.compose.foundation.BorderStroke(1.dp, OrangePale)) {
+        Text(if (value.isBlank()) label else value, color = if (value.isBlank()) Color(0xFF63706A) else OrangeDeep)
+    }
+    if (showDatePicker) {
+        val state = rememberDatePickerState(initialSelectedDateMillis = System.currentTimeMillis())
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = { TextButton(onClick = { selectedDateMillis = state.selectedDateMillis ?: System.currentTimeMillis(); showDatePicker = false; showTimePicker = true }) { Text("Next", color = OrangeDeep) } },
+            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Cancel", color = OrangeDeep) } }
+        ) { DatePicker(state = state) }
+    }
+    if (showTimePicker) {
+        val state = rememberTimePickerState()
+        AlertDialog(
+            onDismissRequest = { showTimePicker = false },
+            title = { Text("Choose time", fontWeight = FontWeight.Bold) },
+            text = { TimePicker(state = state) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val date = Date(stateToMillis(state, selectedDateMillis))
+                    val formatter = SimpleDateFormat("EEE, MMM d • h:mm a", Locale.US)
+                    onValueChange(formatter.format(date))
+                    showTimePicker = false
+                }) { Text("Done", color = OrangeDeep) }
+            },
+            dismissButton = { TextButton(onClick = { showTimePicker = false }) { Text("Cancel", color = OrangeDeep) } }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+private fun stateToMillis(state: androidx.compose.material3.TimePickerState, selectedDateMillis: Long): Long {
+    val calendar = Calendar.getInstance()
+    calendar.timeInMillis = selectedDateMillis
+    calendar.set(Calendar.HOUR_OF_DAY, state.hour)
+    calendar.set(Calendar.MINUTE, state.minute)
+    return calendar.timeInMillis
 }
 
 @Composable
@@ -910,7 +1114,7 @@ private fun SignUpPreview() { PreviewTheme { AuthPreviewContent(showSignUp = tru
 
 @Preview(name = "Dashboard", showBackground = true, widthDp = 390, heightDp = 844)
 @Composable
-private fun DashboardPreview() { PreviewTheme { DashboardScreen(PreviewSnapshot) {} } }
+private fun DashboardPreview() { PreviewTheme { DashboardScreen(PreviewSnapshot.copy(expenses = emptyList()), LocalContext.current, "Alex") {} } }
 
 @Preview(name = "Tasks", showBackground = true, widthDp = 390, heightDp = 844)
 @Composable
@@ -926,7 +1130,7 @@ private fun NotesPreview() { PreviewTheme { NotesScreen(PreviewSnapshot.notes, I
 
 @Preview(name = "Expenses", showBackground = true, widthDp = 390, heightDp = 844)
 @Composable
-private fun ExpensesPreview() { PreviewTheme { ExpensesScreen(PreviewSnapshot.expenses, InMemoryLifeOsRepository()) } }
+private fun ExpensesPreview() { PreviewTheme { ExpensesScreen(emptyList(), InMemoryLifeOsRepository(), LocalContext.current) } }
 
 @Preview(name = "Reminders", showBackground = true, widthDp = 390, heightDp = 844)
 @Composable

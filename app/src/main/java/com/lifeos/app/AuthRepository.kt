@@ -1,14 +1,19 @@
 package com.lifeos.app
 
+import android.content.Context
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 
-class AuthRepository {
+class AuthRepository(context: Context? = null) {
     private val auth = FirebaseAuth.getInstance()
     private val firestore = FirebaseFirestore.getInstance()
+    private val profileStore = context?.let(::ProfileStore)
 
     val isSignedIn: Boolean
         get() = auth.currentUser != null
+
+    val currentUserId: String?
+        get() = auth.currentUser?.uid
 
     fun addAuthStateListener(listener: (Boolean) -> Unit): FirebaseAuth.AuthStateListener {
         val authStateListener = FirebaseAuth.AuthStateListener { listener(it.currentUser != null) }
@@ -67,7 +72,10 @@ class AuthRepository {
                     batch.set(firestore.collection("users").document(userId), profile)
                     batch.set(usernameRef, mapOf("userId" to userId, "email" to email.trim()))
                     batch.commit()
-                        .addOnSuccessListener { callback(Result.success(Unit)) }
+                        .addOnSuccessListener {
+                            profileStore?.save(userId, LifeOsProfile(firstName.trim(), lastName.trim(), normalizedUsername, email.trim()))
+                            callback(Result.success(Unit))
+                        }
                         .addOnFailureListener { callback(Result.failure(it)) }
                 }
                 .addOnFailureListener { callback(Result.failure(it)) }
@@ -79,7 +87,40 @@ class AuthRepository {
     fun signInWithGoogleIdToken(idToken: String, callback: (Result<Unit>) -> Unit) {
         val credential = com.google.firebase.auth.GoogleAuthProvider.getCredential(idToken, null)
         auth.signInWithCredential(credential)
-            .addOnSuccessListener { callback(Result.success(Unit)) }
+            .addOnSuccessListener { result ->
+                val user = result.user
+                val nameParts = user?.displayName.orEmpty().trim().split(" ", limit = 2)
+                val profile = LifeOsProfile(
+                    firstName = nameParts.firstOrNull().orEmpty(),
+                    lastName = nameParts.getOrNull(1).orEmpty(),
+                    username = user?.email?.substringBefore("@").orEmpty(),
+                    email = user?.email.orEmpty()
+                )
+                user?.uid?.let { profileStore?.save(it, profile) }
+                callback(Result.success(Unit))
+            }
+            .addOnFailureListener { callback(Result.failure(it)) }
+    }
+
+    fun restoreProfile(callback: (Result<LifeOsProfile>) -> Unit) {
+        val userId = auth.currentUser?.uid
+        if (userId == null) {
+            callback(Result.failure(IllegalStateException("Sign in before restoring your profile.")))
+            return
+        }
+        firestore.collection("users").document(userId).get()
+            .addOnSuccessListener { document ->
+                val profile = LifeOsProfile(
+                    firstName = document.getString("firstName").orEmpty(),
+                    lastName = document.getString("lastName").orEmpty(),
+                    username = document.getString("username").orEmpty(),
+                    email = document.getString("email") ?: auth.currentUser?.email.orEmpty(),
+                    goal = document.getString("goal").orEmpty(),
+                    notificationsEnabled = document.getBoolean("notificationsEnabled") ?: true
+                )
+                profileStore?.save(userId, profile)
+                callback(Result.success(profile))
+            }
             .addOnFailureListener { callback(Result.failure(it)) }
     }
 
