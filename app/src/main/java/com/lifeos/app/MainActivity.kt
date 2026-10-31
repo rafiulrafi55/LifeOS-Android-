@@ -181,7 +181,7 @@ private fun LifeOsApp(repository: LifeOsRepository, authRepository: AuthReposito
                     LifeOsModule.Tasks -> TasksScreen(snapshot.tasks, repository)
                     LifeOsModule.Calendar -> CalendarScreen(snapshot.events, repository)
                     LifeOsModule.Notes -> NotesScreen(snapshot.notes, repository)
-                    LifeOsModule.Expenses -> ExpensesScreen(snapshot.expenses, repository, LocalContext.current)
+                    LifeOsModule.Expenses -> ExpensesScreen(snapshot, repository, LocalContext.current)
                     LifeOsModule.Reminders -> RemindersScreen(snapshot.reminders, repository)
                     LifeOsModule.Profile -> ProfileScreen(authRepository, repository, snapshot, LocalContext.current)
                 }
@@ -423,6 +423,8 @@ private fun validateSignUp(
 private fun currentDateLabel(): String =
     SimpleDateFormat("EEEE, MMMM d", Locale.US).format(Date())
 
+private fun totalLifeOsCapitals(capitals: List<LifeOsCapital>): Double = capitals.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+
 private fun currentDateStrip(): List<String> {
     val formatter = SimpleDateFormat("d", Locale.US)
     val today = Calendar.getInstance()
@@ -606,25 +608,52 @@ private fun NoteEditorScreen(onBack: () -> Unit, onSave: (String, String) -> Uni
 }
 
 @Composable
-private fun ExpensesScreen(expenses: List<LifeOsExpense>, repository: LifeOsRepository, context: Context) {
+private fun ExpensesScreen(snapshot: LifeOsSnapshot, repository: LifeOsRepository, context: Context) {
     var currency by remember(context) { mutableStateOf(CurrencyStore(context).read()) }
     var showCurrencyDialog by remember { mutableStateOf(false) }
     var showAddExpense by remember { mutableStateOf(false) }
+    var showAddCapital by remember { mutableStateOf(false) }
+    var editingExpense by remember { mutableStateOf<LifeOsExpense?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    val totalExpenses = totalLifeOsExpenses(snapshot.expenses)
+    val totalCapitals = totalLifeOsCapitals(snapshot.capitals)
+    val remainingCapital = totalCapitals - totalExpenses
+
+    val filteredExpenses = snapshot.expenses.filter {
+        searchQuery.isBlank() || it.merchant.contains(searchQuery, ignoreCase = true) || it.category.contains(searchQuery, ignoreCase = true)
+    }
+    val categories = snapshot.expenses.map { it.category }.distinct()
+
     ModuleColumn("Money", "A calmer view of your spending.") {
-        Card(modifier = Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(OrangeDeep, Orange)), RoundedCornerShape(20.dp)), colors = CardDefaults.cardColors(containerColor = Color.Transparent), shape = RoundedCornerShape(20.dp)) {
-            Column(Modifier.fillMaxWidth().padding(20.dp)) { Text("SEPTEMBER SPENDING", color = OrangePale, style = MaterialTheme.typography.labelMedium, letterSpacing = 1.sp); Spacer(Modifier.height(7.dp)); Text(formatLifeOsAmount(totalLifeOsExpenses(expenses).toString(), currency), color = Color.White, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold); Text("${expenses.size} recorded entries", color = Color.White.copy(alpha = 0.78f)) }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Card(modifier = Modifier.weight(1f).background(Brush.linearGradient(listOf(OrangeDeep, Orange)), RoundedCornerShape(20.dp)), colors = CardDefaults.cardColors(containerColor = Color.Transparent), shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.fillMaxWidth().padding(20.dp)) { Text("TOTAL EXPENSE", color = OrangePale, style = MaterialTheme.typography.labelMedium, letterSpacing = 1.sp); Spacer(Modifier.height(7.dp)); Text(formatLifeOsAmount(totalExpenses.toString(), currency), color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
+            }
+            Card(modifier = Modifier.weight(1f).background(Brush.linearGradient(listOf(Moss, Teal)), RoundedCornerShape(20.dp)), colors = CardDefaults.cardColors(containerColor = Color.Transparent), shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.fillMaxWidth().padding(20.dp)) { Text("REMAINING", color = Color(0xFFE0F2F1), style = MaterialTheme.typography.labelMedium, letterSpacing = 1.sp); Spacer(Modifier.height(7.dp)); Text(formatLifeOsAmount(remainingCapital.toString(), currency), color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
+            }
         }
         Spacer(Modifier.height(16.dp))
         OutlinedButton(onClick = { showCurrencyDialog = true }, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(15.dp), border = androidx.compose.foundation.BorderStroke(1.dp, OrangePale)) { Text("Currency: ${currency.code} (${currency.symbol})", color = OrangeDeep) }
         Spacer(Modifier.height(16.dp))
         Button(onClick = { showAddExpense = true }, Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)) { Text("+  Add expense") }
-        if (expenses.isNotEmpty()) {
-            Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(8.dp))
+        Button(onClick = { showAddCapital = true }, Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Moss)) { Text("+  Add capital") }
+
+        Spacer(Modifier.height(16.dp))
+        OutlinedTextField(value = searchQuery, onValueChange = { searchQuery = it }, label = { Text("Search activity") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        Spacer(Modifier.height(16.dp))
+
+        if (filteredExpenses.isNotEmpty()) {
             Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
                 Column(Modifier.padding(horizontal = 18.dp, vertical = 12.dp)) {
                     Text("Recent activity", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    expenses.forEach { expense ->
-                        Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), horizontalArrangement = Arrangement.SpaceBetween) { Column { Text(expense.merchant, fontWeight = FontWeight.SemiBold); Text(expense.category, color = Color(0xFF63706A), style = MaterialTheme.typography.labelMedium) }; Text(formatLifeOsAmount(expense.amount, currency), fontWeight = FontWeight.Bold, color = OrangeDeep) }
+                    filteredExpenses.forEach { expense ->
+                        Row(Modifier.fillMaxWidth().padding(vertical = 14.dp).clickable { editingExpense = expense }, horizontalArrangement = Arrangement.SpaceBetween) {
+                            Column { Text(expense.merchant, fontWeight = FontWeight.SemiBold); Text(expense.category, color = Color(0xFF63706A), style = MaterialTheme.typography.labelMedium) };
+                            Text(formatLifeOsAmount(expense.amount, currency), fontWeight = FontWeight.Bold, color = OrangeDeep)
+                        }
                         HorizontalDivider(color = Color(0xFFE3E8E3))
                     }
                 }
@@ -632,9 +661,21 @@ private fun ExpensesScreen(expenses: List<LifeOsExpense>, repository: LifeOsRepo
         }
     }
     if (showAddExpense) {
-        LifeOsEntryDialog("Add expense", listOf("Merchant", "Category", "Amount"), { showAddExpense = false }) { values ->
-            repository.updateSnapshot { it.copy(expenses = it.expenses + LifeOsExpense("expense-${System.currentTimeMillis()}", values[0], values[1], values[2])) }
+        ExpenseDialog("Add expense", categories, null, { showAddExpense = false }) { merchant, category, amount ->
+            repository.updateSnapshot { it.copy(expenses = it.expenses + LifeOsExpense("expense-${System.currentTimeMillis()}", merchant, category, amount)) }
             showAddExpense = false
+        }
+    }
+    if (editingExpense != null) {
+        ExpenseDialog("Edit expense", categories, editingExpense, { editingExpense = null }) { merchant, category, amount ->
+            repository.updateSnapshot { snap -> snap.copy(expenses = snap.expenses.map { if (it.id == editingExpense!!.id) it.copy(merchant = merchant, category = category, amount = amount) else it }) }
+            editingExpense = null
+        }
+    }
+    if (showAddCapital) {
+        LifeOsEntryDialog("Add capital", listOf("Source", "Amount"), { showAddCapital = false }) { values ->
+            repository.updateSnapshot { it.copy(capitals = it.capitals + LifeOsCapital("capital-${System.currentTimeMillis()}", values[0], values[1])) }
+            showAddCapital = false
         }
     }
     if (showCurrencyDialog) {
@@ -644,6 +685,35 @@ private fun ExpensesScreen(expenses: List<LifeOsExpense>, repository: LifeOsRepo
             } }
         }, confirmButton = {})
     }
+}
+
+@Composable
+private fun ExpenseDialog(title: String, categories: List<String>, expense: LifeOsExpense?, onDismiss: () -> Unit, onSave: (String, String, String) -> Unit) {
+    var merchant by remember { mutableStateOf(expense?.merchant ?: "") }
+    var category by remember { mutableStateOf(expense?.category ?: "") }
+    var amount by remember { mutableStateOf(expense?.amount ?: "") }
+    var expanded by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title, fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                AuthField("Merchant", merchant, { merchant = it })
+                Box(Modifier.fillMaxWidth()) {
+                    OutlinedTextField(value = category, onValueChange = { category = it }, label = { Text("Category") }, modifier = Modifier.fillMaxWidth(), trailingIcon = { IconButton(onClick = { expanded = !expanded }) { Text("v") } })
+                    androidx.compose.material3.DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                        categories.forEach { cat ->
+                            androidx.compose.material3.DropdownMenuItem(text = { Text(cat) }, onClick = { category = cat; expanded = false })
+                        }
+                    }
+                }
+                AuthField("Amount", amount, { amount = it })
+            }
+        },
+        confirmButton = { Button(onClick = { onSave(merchant, category, amount) }, enabled = merchant.isNotBlank() && category.isNotBlank() && amount.isNotBlank(), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = OrangeDeep) } }
+    )
 }
 
 @Composable
@@ -674,7 +744,7 @@ private fun RemindersScreen(reminders: List<LifeOsReminder>, repository: LifeOsR
 }
 
 @Composable
-private fun ProfileScreen(authRepository: AuthRepository? = null, repository: LifeOsRepository? = null, snapshot: LifeOsSnapshot = LifeOsSnapshot(emptyList(), emptyList(), emptyList(), emptyList(), emptyList()), context: Context? = null) {
+private fun ProfileScreen(authRepository: AuthRepository? = null, repository: LifeOsRepository? = null, snapshot: LifeOsSnapshot = LifeOsSnapshot(emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList()), context: Context? = null) {
     val profileStore = remember(context) { context?.let(::ProfileStore) }
     val userId = authRepository?.currentUserId
     var profile by remember(userId) { mutableStateOf(if (userId != null) profileStore?.read(userId) ?: LifeOsProfile() else LifeOsProfile()) }
@@ -1142,7 +1212,7 @@ private fun NotesPreview() { PreviewTheme { NotesScreen(PreviewSnapshot.notes, I
 
 @Preview(name = "Expenses", showBackground = true, widthDp = 390, heightDp = 844)
 @Composable
-private fun ExpensesPreview() { PreviewTheme { ExpensesScreen(emptyList(), InMemoryLifeOsRepository(), LocalContext.current) } }
+private fun ExpensesPreview() { PreviewTheme { ExpensesScreen(PreviewSnapshot, InMemoryLifeOsRepository(), LocalContext.current) } }
 
 @Preview(name = "Reminders", showBackground = true, widthDp = 390, heightDp = 844)
 @Composable

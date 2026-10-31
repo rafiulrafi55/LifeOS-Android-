@@ -32,7 +32,15 @@ data class LifeOsExpense(
     val id: String,
     val merchant: String,
     val category: String,
-    val amount: String
+    val amount: String,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+data class LifeOsCapital(
+    val id: String,
+    val source: String,
+    val amount: String,
+    val timestamp: Long = System.currentTimeMillis()
 )
 
 data class LifeOsReminder(
@@ -46,7 +54,8 @@ data class LifeOsSnapshot(
     val events: List<LifeOsEvent>,
     val notes: List<LifeOsNote>,
     val expenses: List<LifeOsExpense>,
-    val reminders: List<LifeOsReminder>
+    val reminders: List<LifeOsReminder>,
+    val capitals: List<LifeOsCapital> = emptyList()
 )
 
 interface LifeOsRepository {
@@ -63,10 +72,9 @@ class InMemoryLifeOsRepository : LifeOsRepository {
             tasks = emptyList(),
             events = emptyList(),
             notes = emptyList(),
-            expenses = listOf(
-                
-            ),
-            reminders = emptyList()
+            expenses = emptyList(),
+            reminders = emptyList(),
+            capitals = emptyList()
         )
     )
 
@@ -152,8 +160,9 @@ class FirebaseLifeOsRepository(context: Context) : LifeOsRepository {
         syncCollection(batch, userDocument, "tasks", snapshot.value.tasks.map { it.id to mapOf("title" to it.title, "dueLabel" to it.dueLabel, "completed" to it.completed) })
         syncCollection(batch, userDocument, "events", snapshot.value.events.map { it.id to mapOf("title" to it.title, "timeLabel" to it.timeLabel, "colorKey" to it.colorKey) })
         syncCollection(batch, userDocument, "notes", snapshot.value.notes.map { it.id to mapOf("title" to it.title, "preview" to it.preview, "updatedLabel" to it.updatedLabel) })
-        syncCollection(batch, userDocument, "expenses", snapshot.value.expenses.map { it.id to mapOf("merchant" to it.merchant, "category" to it.category, "amount" to it.amount) })
+        syncCollection(batch, userDocument, "expenses", snapshot.value.expenses.map { it.id to mapOf("merchant" to it.merchant, "category" to it.category, "amount" to it.amount, "timestamp" to it.timestamp) })
         syncCollection(batch, userDocument, "reminders", snapshot.value.reminders.map { it.id to mapOf("title" to it.title, "scheduleLabel" to it.scheduleLabel) })
+        syncCollection(batch, userDocument, "capitals", snapshot.value.capitals.map { it.id to mapOf("source" to it.source, "amount" to it.amount, "timestamp" to it.timestamp) })
         batch.set(userDocument.collection("snapshots").document("latest"), snapshotDocument(snapshot.value))
         batch.commit().addOnSuccessListener { callback(Result.success(Unit)) }.addOnFailureListener { callback(Result.failure(it)) }
     }
@@ -182,16 +191,18 @@ class FirebaseLifeOsRepository(context: Context) : LifeOsRepository {
         "tasks" to snapshot.tasks.map { mapOf("id" to it.id, "title" to it.title, "dueLabel" to it.dueLabel, "completed" to it.completed) },
         "events" to snapshot.events.map { mapOf("id" to it.id, "title" to it.title, "timeLabel" to it.timeLabel, "colorKey" to it.colorKey) },
         "notes" to snapshot.notes.map { mapOf("id" to it.id, "title" to it.title, "preview" to it.preview, "updatedLabel" to it.updatedLabel) },
-        "expenses" to snapshot.expenses.map { mapOf("id" to it.id, "merchant" to it.merchant, "category" to it.category, "amount" to it.amount) },
-        "reminders" to snapshot.reminders.map { mapOf("id" to it.id, "title" to it.title, "scheduleLabel" to it.scheduleLabel) }
+        "expenses" to snapshot.expenses.map { mapOf("id" to it.id, "merchant" to it.merchant, "category" to it.category, "amount" to it.amount, "timestamp" to it.timestamp) },
+        "reminders" to snapshot.reminders.map { mapOf("id" to it.id, "title" to it.title, "scheduleLabel" to it.scheduleLabel) },
+        "capitals" to snapshot.capitals.map { mapOf("id" to it.id, "source" to it.source, "amount" to it.amount, "timestamp" to it.timestamp) }
     )
 
     private fun snapshotFromDocument(data: Map<String, Any>): LifeOsSnapshot = LifeOsSnapshot(
         tasks = (data["tasks"] as? List<*>).orEmpty().mapNotNull { (it as? Map<*, *>)?.let { item -> LifeOsTask(item["id"].toString(), item["title"].toString(), item["dueLabel"].toString(), item["completed"] as? Boolean ?: false) } },
         events = (data["events"] as? List<*>).orEmpty().mapNotNull { (it as? Map<*, *>)?.let { item -> LifeOsEvent(item["id"].toString(), item["title"].toString(), item["timeLabel"].toString(), item["colorKey"].toString()) } },
         notes = (data["notes"] as? List<*>).orEmpty().mapNotNull { (it as? Map<*, *>)?.let { item -> LifeOsNote(item["id"].toString(), item["title"].toString(), item["preview"].toString(), item["updatedLabel"].toString()) } },
-        expenses = (data["expenses"] as? List<*>).orEmpty().mapNotNull { (it as? Map<*, *>)?.let { item -> LifeOsExpense(item["id"].toString(), item["merchant"].toString(), item["category"].toString(), item["amount"].toString()) } },
-        reminders = (data["reminders"] as? List<*>).orEmpty().mapNotNull { (it as? Map<*, *>)?.let { item -> LifeOsReminder(item["id"].toString(), item["title"].toString(), item["scheduleLabel"].toString()) } }
+        expenses = (data["expenses"] as? List<*>).orEmpty().mapNotNull { (it as? Map<*, *>)?.let { item -> LifeOsExpense(item["id"].toString(), item["merchant"].toString(), item["category"].toString(), item["amount"].toString(), (item["timestamp"] as? Long) ?: System.currentTimeMillis()) } },
+        reminders = (data["reminders"] as? List<*>).orEmpty().mapNotNull { (it as? Map<*, *>)?.let { item -> LifeOsReminder(item["id"].toString(), item["title"].toString(), item["scheduleLabel"].toString()) } },
+        capitals = (data["capitals"] as? List<*>).orEmpty().mapNotNull { (it as? Map<*, *>)?.let { item -> LifeOsCapital(item["id"].toString(), item["source"].toString(), item["amount"].toString(), (item["timestamp"] as? Long) ?: System.currentTimeMillis()) } }
     )
 
     private fun syncCollection(
@@ -234,8 +245,7 @@ private fun InMemoryLifeOsRepository.observeSnapshotValue(): LifeOsSnapshot =
         tasks = emptyList(),
         events = emptyList(),
         notes = emptyList(),
-        expenses = listOf(
-            
-        ),
-        reminders = emptyList()
+        expenses = emptyList(),
+        reminders = emptyList(),
+        capitals = emptyList()
     )

@@ -20,16 +20,23 @@ class LocalLifeOsStore(context: Context) {
         put("tasks", JSONArray().apply { snapshot.tasks.forEach { put(JSONObject().apply { put("id", it.id); put("title", it.title); put("dueLabel", it.dueLabel); put("completed", it.completed) }) } })
         put("events", JSONArray().apply { snapshot.events.forEach { put(JSONObject().apply { put("id", it.id); put("title", it.title); put("timeLabel", it.timeLabel); put("colorKey", it.colorKey) }) } })
         put("notes", JSONArray().apply { snapshot.notes.forEach { put(JSONObject().apply { put("id", it.id); put("title", it.title); put("preview", it.preview); put("updatedLabel", it.updatedLabel) }) } })
-        put("expenses", JSONArray().apply { snapshot.expenses.forEach { put(JSONObject().apply { put("id", it.id); put("merchant", it.merchant); put("category", it.category); put("amount", it.amount) }) } })
+        put("expenses", JSONArray().apply { snapshot.expenses.forEach { put(JSONObject().apply { put("id", it.id); put("merchant", it.merchant); put("category", it.category); put("amount", it.amount); put("timestamp", it.timestamp) }) } })
         put("reminders", JSONArray().apply { snapshot.reminders.forEach { put(JSONObject().apply { put("id", it.id); put("title", it.title); put("scheduleLabel", it.scheduleLabel) }) } })
+        put("capitals", JSONArray().apply { snapshot.capitals.forEach { put(JSONObject().apply { put("id", it.id); put("source", it.source); put("amount", it.amount); put("timestamp", it.timestamp) }) } })
     }
 
     private fun decodeSnapshot(json: JSONObject, fallback: LifeOsSnapshot): LifeOsSnapshot = LifeOsSnapshot(
         tasks = json.array("tasks", fallback.tasks) { item -> LifeOsTask(item.string("id"), item.string("title"), item.string("dueLabel"), item.optBoolean("completed")) },
         events = json.array("events", fallback.events) { item -> LifeOsEvent(item.string("id"), item.string("title"), item.string("timeLabel"), item.string("colorKey")) },
         notes = json.array("notes", fallback.notes) { item -> LifeOsNote(item.string("id"), item.string("title"), item.string("preview"), item.string("updatedLabel")) },
-        expenses = json.array("expenses", fallback.expenses) { item -> LifeOsExpense(item.string("id"), item.string("merchant"), item.string("category"), item.string("amount")) },
-        reminders = json.array("reminders", fallback.reminders) { item -> LifeOsReminder(item.string("id"), item.string("title"), item.string("scheduleLabel")) }
+        expenses = json.array("expenses", fallback.expenses) { item -> LifeOsExpense(item.string("id"), item.string("merchant"), item.string("category"), item.string("amount"), item.optLong("timestamp", System.currentTimeMillis())) },
+        reminders = json.array("reminders", fallback.reminders) { item -> LifeOsReminder(item.string("id"), item.string("title"), item.string("scheduleLabel")) },
+        capitals = json.optJSONArray("capitals")?.let { array ->
+            buildList { for (index in 0 until array.length()) {
+                val item = array.getJSONObject(index)
+                add(LifeOsCapital(item.optString("id", ""), item.optString("source", ""), item.optString("amount", ""), item.optLong("timestamp", System.currentTimeMillis())))
+            }}
+        } ?: emptyList()
     )
 
     private fun <T> JSONObject.array(key: String, fallback: List<T>, map: (JSONObject) -> T): List<T> {
