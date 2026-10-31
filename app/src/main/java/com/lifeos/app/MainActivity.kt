@@ -167,14 +167,6 @@ private fun LifeOsApp(repository: LifeOsRepository, authRepository: AuthReposito
     ) {
         Scaffold(
             containerColor = Sand,
-            topBar = {
-                TopAppBar(title = {
-                    Column {
-                        Text("LifeOS", fontWeight = FontWeight.Bold)
-                        Text(if (selectedModule == LifeOsModule.Dashboard) currentDateLabel() else selectedModule.label, style = MaterialTheme.typography.labelMedium, color = Moss)
-                    }
-                })
-            },
             bottomBar = {
                 NavigationBar(modifier = Modifier.padding(horizontal = 8.dp), containerColor = Color.White, tonalElevation = 0.dp) {
                     LifeOsModule.entries.forEach { module ->
