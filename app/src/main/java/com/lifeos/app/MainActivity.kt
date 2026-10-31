@@ -464,26 +464,32 @@ private fun DashboardScreen(snapshot: LifeOsSnapshot, context: Context, displayN
                 }
             }
             item { SectionHeader("Up next", "View calendar") { onModuleSelected(LifeOsModule.Calendar) } }
-            item {
-                Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
-                    Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) { snapshot.events.take(2).forEach { EventRow(it) } }
+            if (snapshot.events.isNotEmpty()) {
+                item {
+                    Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
+                        Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) { snapshot.events.take(2).forEach { EventRow(it) } }
+                    }
                 }
             }
             item { SectionHeader("Your rhythm", "All tasks") { onModuleSelected(LifeOsModule.Tasks) } }
-            item {
-                Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
-                    Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) { snapshot.tasks.take(3).forEach { task -> TaskRow(task) {} } }
-                }
-            }
-            item {
-                SectionHeader("Money this month", "View expenses") { onModuleSelected(LifeOsModule.Expenses) }
-                Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
-                    Row(Modifier.fillMaxWidth().padding(20.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Column { Text("Total spending", color = Color(0xFF63706A)); Text(formatLifeOsAmount(totalLifeOsExpenses(snapshot.expenses).toString(), currency), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Ink) }
-                        Text("${snapshot.expenses.size} entries", color = OrangeDeep, fontWeight = FontWeight.Bold)
+            if (snapshot.tasks.isNotEmpty()) {
+                item {
+                    Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
+                        Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) { snapshot.tasks.take(3).forEach { task -> TaskRow(task) {} } }
                     }
                 }
-                Spacer(Modifier.height(20.dp))
+            }
+            if (snapshot.expenses.isNotEmpty()) {
+                item {
+                    SectionHeader("Money this month", "View expenses") { onModuleSelected(LifeOsModule.Expenses) }
+                    Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
+                        Row(Modifier.fillMaxWidth().padding(20.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Column { Text("Total spending", color = Color(0xFF63706A)); Text(formatLifeOsAmount(totalLifeOsExpenses(snapshot.expenses).toString(), currency), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Ink) }
+                            Text("${snapshot.expenses.size} entries", color = OrangeDeep, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Spacer(Modifier.height(20.dp))
+                }
             }
         }
     }
@@ -495,8 +501,10 @@ private fun TasksScreen(tasks: List<LifeOsTask>, repository: LifeOsRepository) {
     ModuleColumn("Task management", "Keep the important things moving.") {
         Button(onClick = { showAddTask = true }, Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)) { Text("+  Add a task") }
         Spacer(Modifier.height(16.dp))
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
-            Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) { tasks.forEach { task -> TaskRow(task) { repository.toggleTask(task.id) } } }
+        if (tasks.isNotEmpty()) {
+            Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) { tasks.forEach { task -> TaskRow(task) { repository.toggleTask(task.id) } } }
+            }
         }
     }
     if (showAddTask) {
@@ -526,8 +534,10 @@ private fun CalendarScreen(events: List<LifeOsEvent>, repository: LifeOsReposito
         Spacer(Modifier.height(18.dp))
         Button(onClick = { showAddEvent = true }, Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)) { Text("+  Add an event") }
         Spacer(Modifier.height(16.dp))
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
-            Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) { events.forEach { EventRow(it) } }
+        if (events.isNotEmpty()) {
+            Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) { events.forEach { EventRow(it) } }
+            }
         }
     }
     if (showAddEvent) {
@@ -608,13 +618,15 @@ private fun ExpensesScreen(expenses: List<LifeOsExpense>, repository: LifeOsRepo
         OutlinedButton(onClick = { showCurrencyDialog = true }, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(15.dp), border = androidx.compose.foundation.BorderStroke(1.dp, OrangePale)) { Text("Currency: ${currency.code} (${currency.symbol})", color = OrangeDeep) }
         Spacer(Modifier.height(16.dp))
         Button(onClick = { showAddExpense = true }, Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)) { Text("+  Add expense") }
-        Spacer(Modifier.height(16.dp))
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
-            Column(Modifier.padding(horizontal = 18.dp, vertical = 12.dp)) {
-                Text("Recent activity", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                expenses.forEach { expense ->
-                    Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), horizontalArrangement = Arrangement.SpaceBetween) { Column { Text(expense.merchant, fontWeight = FontWeight.SemiBold); Text(expense.category, color = Color(0xFF63706A), style = MaterialTheme.typography.labelMedium) }; Text(formatLifeOsAmount(expense.amount, currency), fontWeight = FontWeight.Bold, color = OrangeDeep) }
-                    HorizontalDivider(color = Color(0xFFE3E8E3))
+        if (expenses.isNotEmpty()) {
+            Spacer(Modifier.height(16.dp))
+            Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.padding(horizontal = 18.dp, vertical = 12.dp)) {
+                    Text("Recent activity", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    expenses.forEach { expense ->
+                        Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), horizontalArrangement = Arrangement.SpaceBetween) { Column { Text(expense.merchant, fontWeight = FontWeight.SemiBold); Text(expense.category, color = Color(0xFF63706A), style = MaterialTheme.typography.labelMedium) }; Text(formatLifeOsAmount(expense.amount, currency), fontWeight = FontWeight.Bold, color = OrangeDeep) }
+                        HorizontalDivider(color = Color(0xFFE3E8E3))
+                    }
                 }
             }
         }
@@ -851,7 +863,7 @@ private fun FirebaseSyncPanel(syncing: Boolean, restoring: Boolean, message: Str
                 Box(Modifier.size(40.dp).clip(CircleShape).background(OrangePale), contentAlignment = Alignment.Center) { Text("F", color = OrangeDeep, fontWeight = FontWeight.Bold, fontSize = 20.sp) }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Firebase sync", fontWeight = FontWeight.Bold, color = Ink)
+                    Text("Sync", fontWeight = FontWeight.Bold, color = Ink)
                     Text("Back up this device's LifeOS data", color = Color(0xFF63706A), style = MaterialTheme.typography.labelMedium)
                 }
             }
@@ -861,7 +873,7 @@ private fun FirebaseSyncPanel(syncing: Boolean, restoring: Boolean, message: Str
             }
             Spacer(Modifier.height(10.dp))
             OutlinedButton(onClick = onRestore, enabled = !syncing && !restoring, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(15.dp), border = androidx.compose.foundation.BorderStroke(1.dp, OrangePale)) {
-                Text(if (restoring) "Restoring..." else "Restore from Firebase", color = OrangeDeep)
+                Text(if (restoring) "Restoring..." else "Restore Data", color = OrangeDeep)
             }
             if (message != null) {
                 Spacer(Modifier.height(10.dp))
