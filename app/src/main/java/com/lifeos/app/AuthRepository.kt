@@ -89,15 +89,43 @@ class AuthRepository(context: Context? = null) {
         auth.signInWithCredential(credential)
             .addOnSuccessListener { result ->
                 val user = result.user
-                val nameParts = user?.displayName.orEmpty().trim().split(" ", limit = 2)
+                if (user == null) {
+                    callback(Result.failure(IllegalStateException("Google sign-in failed.")))
+                    return@addOnSuccessListener
+                }
+
+                val userId = user.uid
+                val nameParts = user.displayName.orEmpty().trim().split(" ", limit = 2)
                 val profile = LifeOsProfile(
                     firstName = nameParts.firstOrNull().orEmpty(),
                     lastName = nameParts.getOrNull(1).orEmpty(),
-                    username = user?.email?.substringBefore("@").orEmpty(),
-                    email = user?.email.orEmpty()
+                    username = user.email?.substringBefore("@").orEmpty(),
+                    email = user.email.orEmpty()
                 )
-                user?.uid?.let { profileStore?.save(it, profile) }
-                callback(Result.success(Unit))
+
+                // Initialize Firestore user document if it doesn't exist
+                val userRef = firestore.collection("users").document(userId)
+                userRef.get().addOnSuccessListener { document ->
+                    if (!document.exists()) {
+                        val profileMap = mapOf(
+                            "firstName" to profile.firstName,
+                            "lastName" to profile.lastName,
+                            "username" to profile.username,
+                            "email" to profile.email
+                        )
+                        userRef.set(profileMap).addOnSuccessListener {
+                            profileStore?.save(userId, profile)
+                            callback(Result.success(Unit))
+                        }.addOnFailureListener {
+                            callback(Result.failure(it))
+                        }
+                    } else {
+                        profileStore?.save(userId, profile)
+                        callback(Result.success(Unit))
+                    }
+                }.addOnFailureListener {
+                    callback(Result.failure(it))
+                }
             }
             .addOnFailureListener { callback(Result.failure(it)) }
     }
