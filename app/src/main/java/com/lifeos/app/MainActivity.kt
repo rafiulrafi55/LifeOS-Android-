@@ -910,7 +910,31 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
         AlertDialog(
             onDismissRequest = { showNotifications = false },
             title = { Text("Notifications", fontWeight = FontWeight.Bold) },
-            text = { Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(profile.notificationsEnabled, { enabled -> profile = profile.copy(notificationsEnabled = enabled); userId?.let { profileStore?.save(it, profile.copy(notificationsEnabled = enabled)) } }); Text("Allow LifeOS reminders and updates", fontWeight = FontWeight.SemiBold) } },
+            text = {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(profile.notificationsEnabled, { enabled -> profile = profile.copy(notificationsEnabled = enabled); userId?.let { profileStore?.save(it, profile) } })
+                        Text("Enable all notifications", fontWeight = FontWeight.SemiBold)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(profile.budgetNotificationsEnabled, { enabled -> profile = profile.copy(budgetNotificationsEnabled = enabled); userId?.let { profileStore?.save(it, profile) } })
+                        Text("Budget Alerts", fontWeight = FontWeight.Medium)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(profile.taskNotificationsEnabled, { enabled -> profile = profile.copy(taskNotificationsEnabled = enabled); userId?.let { profileStore?.save(it, profile) } })
+                        Text("Task Reminders", fontWeight = FontWeight.Medium)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(profile.eventNotificationsEnabled, { enabled -> profile = profile.copy(eventNotificationsEnabled = enabled); userId?.let { profileStore?.save(it, profile) } })
+                        Text("Calendar Events", fontWeight = FontWeight.Medium)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(profile.reminderNotificationsEnabled, { enabled -> profile = profile.copy(reminderNotificationsEnabled = enabled); userId?.let { profileStore?.save(it, profile) } })
+                        Text("Custom Reminders", fontWeight = FontWeight.Medium)
+                    }
+                }
+            },
             confirmButton = { TextButton(onClick = { showNotifications = false }) { Text("Done", color = OrangeDeep) } }
         )
     }

@@ -8,7 +8,11 @@ data class LifeOsProfile(
     val username: String = "",
     val email: String = "",
     val goal: String = "",
-    val notificationsEnabled: Boolean = true
+    val notificationsEnabled: Boolean = true,
+    val budgetNotificationsEnabled: Boolean = true,
+    val taskNotificationsEnabled: Boolean = true,
+    val eventNotificationsEnabled: Boolean = true,
+    val reminderNotificationsEnabled: Boolean = true
 )
 
 class ProfileStore(context: Context) {
@@ -20,7 +24,11 @@ class ProfileStore(context: Context) {
         username = preferences.getString("${userId}_username", "") ?: "",
         email = preferences.getString("${userId}_email", "") ?: "",
         goal = preferences.getString("${userId}_goal", "") ?: "",
-        notificationsEnabled = preferences.getBoolean("${userId}_notificationsEnabled", true)
+        notificationsEnabled = preferences.getBoolean("${userId}_notificationsEnabled", true),
+        budgetNotificationsEnabled = preferences.getBoolean("${userId}_budgetNotificationsEnabled", true),
+        taskNotificationsEnabled = preferences.getBoolean("${userId}_taskNotificationsEnabled", true),
+        eventNotificationsEnabled = preferences.getBoolean("${userId}_eventNotificationsEnabled", true),
+        reminderNotificationsEnabled = preferences.getBoolean("${userId}_reminderNotificationsEnabled", true)
     )
 
     fun save(userId: String, profile: LifeOsProfile) {
@@ -31,6 +39,10 @@ class ProfileStore(context: Context) {
             .putString("${userId}_email", profile.email)
             .putString("${userId}_goal", profile.goal)
             .putBoolean("${userId}_notificationsEnabled", profile.notificationsEnabled)
+            .putBoolean("${userId}_budgetNotificationsEnabled", profile.budgetNotificationsEnabled)
+            .putBoolean("${userId}_taskNotificationsEnabled", profile.taskNotificationsEnabled)
+            .putBoolean("${userId}_eventNotificationsEnabled", profile.eventNotificationsEnabled)
+            .putBoolean("${userId}_reminderNotificationsEnabled", profile.reminderNotificationsEnabled)
             .apply()
     }
 
