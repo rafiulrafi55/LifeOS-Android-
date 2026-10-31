@@ -475,7 +475,7 @@ private fun DashboardScreen(snapshot: LifeOsSnapshot, context: Context, displayN
             item {
                 Spacer(Modifier.height(16.dp))
                 Text("Good morning${if (displayName.isBlank()) "" else ", $displayName"}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Ink)
-                Text("A clear day starts with a clear view.", color = Color(0xFF63706A))
+                Text("A clear day starts with a clear view", color = Color(0xFF63706A))
             }
             item {
                 Card(
@@ -504,7 +504,7 @@ private fun DashboardScreen(snapshot: LifeOsSnapshot, context: Context, displayN
                                 shape = RoundedCornerShape(16.dp)
                             ) {
                                 Column(Modifier.padding(16.dp)) {
-                                    Text("REMAINING", color = Color(0xFFE0F2F1), style = MaterialTheme.typography.labelMedium)
+                                    Text("REMAINING BUDGET", color = Color(0xFFE0F2F1), style = MaterialTheme.typography.labelMedium)
                                     Spacer(Modifier.height(4.dp))
                                     Text(remainingText, color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                 }
@@ -577,7 +577,7 @@ private fun DashboardScreen(snapshot: LifeOsSnapshot, context: Context, displayN
 @Composable
 private fun TasksScreen(tasks: List<LifeOsTask>, repository: LifeOsRepository, context: Context) {
     var showAddTask by remember { mutableStateOf(false) }
-    ModuleColumn("Task management", "Keep the important things moving.") {
+    ModuleColumn("Task management", "Keep the important things moving") {
         Button(onClick = { showAddTask = true }, Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)) { Text("+  Add a task") }
         Spacer(Modifier.height(16.dp))
         if (tasks.isNotEmpty()) {
@@ -647,7 +647,7 @@ private fun NotesScreen(notes: List<LifeOsNote>, repository: LifeOsRepository) {
         )
         return
     }
-    ModuleColumn("Notes", "Capture thoughts before they drift away.") {
+    ModuleColumn("Notes", "Capture thoughts before they drift away") {
         Button(onClick = { editingNote = true }, Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)) { Text("+  New note") }
         Spacer(Modifier.height(16.dp))
         notes.forEach { note ->
@@ -716,13 +716,13 @@ private fun ExpensesScreen(snapshot: LifeOsSnapshot, repository: LifeOsRepositor
 
     val categories = snapshot.expenses.map { it.category }.distinct()
 
-    ModuleColumn("Money", "A calmer view of your spending.") {
+    ModuleColumn("Money", "A calmer view of your spending") {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Card(modifier = Modifier.weight(1f).background(Brush.linearGradient(listOf(OrangeDeep, Orange)), RoundedCornerShape(20.dp)), colors = CardDefaults.cardColors(containerColor = Color.Transparent), shape = RoundedCornerShape(20.dp)) {
                 Column(Modifier.fillMaxWidth().padding(20.dp)) { Text("TOTAL EXPENSE", color = OrangePale, style = MaterialTheme.typography.labelMedium, letterSpacing = 1.sp); Spacer(Modifier.height(7.dp)); Text(formatLifeOsAmount(totalExpenses.toString(), currency), color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
             }
             Card(modifier = Modifier.weight(1f).background(Brush.linearGradient(listOf(Moss, Teal)), RoundedCornerShape(20.dp)), colors = CardDefaults.cardColors(containerColor = Color.Transparent), shape = RoundedCornerShape(20.dp)) {
-                Column(Modifier.fillMaxWidth().padding(20.dp)) { Text("REMAINING", color = Color(0xFFE0F2F1), style = MaterialTheme.typography.labelMedium, letterSpacing = 1.sp); Spacer(Modifier.height(7.dp)); Text(remainingText, color = remainingColor, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
+                Column(Modifier.fillMaxWidth().padding(20.dp)) { Text("REMAINING BUDGET", color = Color(0xFFE0F2F1), style = MaterialTheme.typography.labelMedium, letterSpacing = 1.sp); Spacer(Modifier.height(7.dp)); Text(remainingText, color = remainingColor, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -819,7 +819,7 @@ private fun ExpenseDialog(title: String, categories: List<String>, expense: Life
 @Composable
 private fun RemindersScreen(reminders: List<LifeOsReminder>, repository: LifeOsRepository, context: Context) {
     var showAddReminder by remember { mutableStateOf(false) }
-    ModuleColumn("Reminders", "Small prompts for the things you care about.") {
+    ModuleColumn("Reminders", "Small prompts for the things you care about") {
         Button(onClick = { showAddReminder = true }, Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)) { Text("+  Add a reminder") }
         Spacer(Modifier.height(16.dp))
         reminders.forEach { reminder ->
@@ -869,7 +869,7 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
     var showProfileEdit by remember { mutableStateOf(false) }
     var showGoalEdit by remember { mutableStateOf(false) }
     var showNotifications by remember { mutableStateOf(false) }
-    ModuleColumn("Profile", "Shape LifeOS around your life.") {
+    ModuleColumn("Profile", "Shape LifeOS around your life") {
         Card(
             modifier = Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(OrangeDeep, Orange)), RoundedCornerShape(26.dp)),
             colors = CardDefaults.cardColors(containerColor = Color.Transparent),
@@ -888,7 +888,7 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
                     }
                 }
                 Spacer(Modifier.height(22.dp))
-                Text("Making room for a more intentional life.", color = Color.White, style = MaterialTheme.typography.bodyLarge)
+                Text("Making room for a more intentional life", color = Color.White, style = MaterialTheme.typography.bodyLarge)
             }
         }
         Spacer(Modifier.height(18.dp))
