@@ -424,7 +424,7 @@ private fun currentDateLabel(): String =
     SimpleDateFormat("EEEE, MMMM d", Locale.US).format(Date())
 
 private fun currentDateStrip(): List<String> {
-    val formatter = SimpleDateFormat("EE d", Locale.US)
+    val formatter = SimpleDateFormat("d", Locale.US)
     val today = Calendar.getInstance()
     return (-2..2).map { offset ->
         Calendar.getInstance().apply {
@@ -526,7 +526,7 @@ private fun CalendarScreen(events: List<LifeOsEvent>, repository: LifeOsReposito
             Row(Modifier.fillMaxWidth().padding(18.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 currentDateStrip().forEachIndexed { index, day ->
                     Box(Modifier.size(48.dp).clip(CircleShape).background(if (index == 2) OrangeDeep else Color.Transparent), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(day.take(1), color = if (index == 2) OrangePale else Color(0xFF63706A), fontSize = 12.sp); Text(day.drop(2), fontWeight = if (index == 2) FontWeight.Bold else FontWeight.Normal, color = if (index == 2) Color.White else Ink) }
+                        Text(day, fontWeight = if (index == 2) FontWeight.Bold else FontWeight.Normal, color = if (index == 2) Color.White else Ink)
                     }
                 }
             }
