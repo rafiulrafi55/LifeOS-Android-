@@ -9,3 +9,7 @@ app/build/
 # IDE files
 .idea/
 *.iml
+
+#Release Keys
+*.jks
+*.keystore
