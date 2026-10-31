@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Splash screen theme -->
+    <style name="Theme.LifeOS.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/white</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="postSplashScreenTheme">@style/Theme.LifeOS</item>
+    </style>
+
+    <!-- Main app theme -->
     <style name="Theme.LifeOS" parent="android:style/Theme.Material.Light.NoActionBar" />
 </resources>

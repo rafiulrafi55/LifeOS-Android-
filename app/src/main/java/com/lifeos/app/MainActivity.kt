@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.border
@@ -85,6 +86,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Note
@@ -106,8 +108,28 @@ class MainActivity : ComponentActivity() {
     private val authRepository by lazy { AuthRepository(applicationContext) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
+
+        // Request notification permission if needed
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            val launcher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) {}
+            launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+
+        // Schedule morning notifications
+        val notificationManager = LifeOsNotificationManager(applicationContext)
+        notificationManager.scheduleMorningEventNotifications(applicationContext, "")
+
         setContent { LifeOsApp(repository, authRepository) }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val userId = authRepository.currentUserId
+        if (userId != null) {
+            scheduleNotificationWorkers(applicationContext, userId)
+        }
     }
 }
 
@@ -178,11 +200,11 @@ private fun LifeOsApp(repository: LifeOsRepository, authRepository: AuthReposito
             Box(Modifier.padding(paddingValues)) {
                 when (selectedModule) {
                     LifeOsModule.Dashboard -> DashboardScreen(snapshot, LocalContext.current, profile.firstName) { selectedModule = it }
-                    LifeOsModule.Tasks -> TasksScreen(snapshot.tasks, repository)
-                    LifeOsModule.Calendar -> CalendarScreen(snapshot.events, repository)
+                    LifeOsModule.Tasks -> TasksScreen(snapshot.tasks, repository, LocalContext.current)
+                    LifeOsModule.Calendar -> CalendarScreen(snapshot.events, repository, LocalContext.current)
                     LifeOsModule.Notes -> NotesScreen(snapshot.notes, repository)
                     LifeOsModule.Expenses -> ExpensesScreen(snapshot, repository, LocalContext.current)
-                    LifeOsModule.Reminders -> RemindersScreen(snapshot.reminders, repository)
+                    LifeOsModule.Reminders -> RemindersScreen(snapshot.reminders, repository, LocalContext.current)
                     LifeOsModule.Profile -> ProfileScreen(authRepository, repository, snapshot, LocalContext.current)
                 }
             }
@@ -498,7 +520,7 @@ private fun DashboardScreen(snapshot: LifeOsSnapshot, context: Context, displayN
 }
 
 @Composable
-private fun TasksScreen(tasks: List<LifeOsTask>, repository: LifeOsRepository) {
+private fun TasksScreen(tasks: List<LifeOsTask>, repository: LifeOsRepository, context: Context) {
     var showAddTask by remember { mutableStateOf(false) }
     ModuleColumn("Task management", "Keep the important things moving.") {
         Button(onClick = { showAddTask = true }, Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)) { Text("+  Add a task") }
@@ -512,8 +534,10 @@ private fun TasksScreen(tasks: List<LifeOsTask>, repository: LifeOsRepository) {
     if (showAddTask) {
         TaskDialog(
             onDismiss = { showAddTask = false },
-            onSave = { title, dueLabel ->
-                repository.updateSnapshot { it.copy(tasks = it.tasks + LifeOsTask("task-${System.currentTimeMillis()}", title, dueLabel)) }
+            onSave = { title, dueLabel, dueTimestamp ->
+                val newTask = LifeOsTask("task-${System.currentTimeMillis()}", title, dueLabel, false, dueTimestamp)
+                repository.updateSnapshot { it.copy(tasks = it.tasks + newTask) }
+                TaskScheduler(context).scheduleTask(newTask)
                 showAddTask = false
             }
         )
@@ -521,7 +545,7 @@ private fun TasksScreen(tasks: List<LifeOsTask>, repository: LifeOsRepository) {
 }
 
 @Composable
-private fun CalendarScreen(events: List<LifeOsEvent>, repository: LifeOsRepository) {
+private fun CalendarScreen(events: List<LifeOsEvent>, repository: LifeOsRepository, context: Context) {
     var showAddEvent by remember { mutableStateOf(false) }
     ModuleColumn("Your calendar", currentDateLabel()) {
         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
@@ -545,8 +569,10 @@ private fun CalendarScreen(events: List<LifeOsEvent>, repository: LifeOsReposito
     if (showAddEvent) {
         EventDialog(
             onDismiss = { showAddEvent = false },
-            onSave = { title, timeLabel, colorKey ->
-                repository.updateSnapshot { it.copy(events = it.events + LifeOsEvent("event-${System.currentTimeMillis()}", title, timeLabel, colorKey)) }
+            onSave = { title, timeLabel, timestamp ->
+                val newEvent = LifeOsEvent("event-${System.currentTimeMillis()}", title, timeLabel, "coral", timestamp)
+                repository.updateSnapshot { it.copy(events = it.events + newEvent) }
+                EventScheduler(context).scheduleEvent(newEvent)
                 showAddEvent = false
             }
         )
@@ -736,7 +762,7 @@ private fun ExpenseDialog(title: String, categories: List<String>, expense: Life
 }
 
 @Composable
-private fun RemindersScreen(reminders: List<LifeOsReminder>, repository: LifeOsRepository) {
+private fun RemindersScreen(reminders: List<LifeOsReminder>, repository: LifeOsRepository, context: Context) {
     var showAddReminder by remember { mutableStateOf(false) }
     ModuleColumn("Reminders", "Small prompts for the things you care about.") {
         Button(onClick = { showAddReminder = true }, Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)) { Text("+  Add a reminder") }
@@ -746,7 +772,14 @@ private fun RemindersScreen(reminders: List<LifeOsReminder>, repository: LifeOsR
                 Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(12.dp).clip(CircleShape).background(Coral))
                     Spacer(Modifier.width(14.dp))
-                    Column { Text(reminder.title, fontWeight = FontWeight.SemiBold); Text(reminder.scheduleLabel, color = Color(0xFF63706A), style = MaterialTheme.typography.labelMedium) }
+                    Column(Modifier.weight(1f)) { Text(reminder.title, fontWeight = FontWeight.SemiBold); Text(reminder.scheduleLabel, color = Color(0xFF63706A), style = MaterialTheme.typography.labelMedium) }
+                    IconButton(onClick = {
+                        val reminderScheduler = ReminderScheduler(context)
+                        reminderScheduler.cancelReminder(reminder.id)
+                        repository.updateSnapshot { it.copy(reminders = it.reminders.filter { r -> r.id != reminder.id }) }
+                    }) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFF63706A))
+                    }
                 }
             }
         }
@@ -754,8 +787,11 @@ private fun RemindersScreen(reminders: List<LifeOsReminder>, repository: LifeOsR
     if (showAddReminder) {
         ReminderDialog(
             onDismiss = { showAddReminder = false },
-            onSave = { title, scheduleLabel ->
-                repository.updateSnapshot { it.copy(reminders = it.reminders + LifeOsReminder("reminder-${System.currentTimeMillis()}", title, scheduleLabel)) }
+            onSave = { title, scheduleLabel, scheduledTimeMillis ->
+                val newReminder = LifeOsReminder("reminder-${System.currentTimeMillis()}", title, scheduleLabel, scheduledTimeMillis)
+                repository.updateSnapshot { it.copy(reminders = it.reminders + newReminder) }
+                val reminderScheduler = ReminderScheduler(context)
+                reminderScheduler.scheduleReminder(newReminder)
                 showAddReminder = false
             }
         )
@@ -973,47 +1009,50 @@ private fun FirebaseSyncPanel(syncing: Boolean, restoring: Boolean, message: Str
 }
 
 @Composable
-private fun TaskDialog(onDismiss: () -> Unit, onSave: (String, String) -> Unit) {
+private fun TaskDialog(onDismiss: () -> Unit, onSave: (String, String, Long) -> Unit) {
     var title by remember { mutableStateOf("") }
     var dueLabel by remember { mutableStateOf("") }
+    var dueTimestamp by remember { mutableStateOf(0L) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Add a task", fontWeight = FontWeight.Bold) },
-        text = { Column { AuthField("Task title", title, { title = it }); DateTimePickerField("Due date and time", dueLabel) { dueLabel = it } } },
-        confirmButton = { Button(onClick = { onSave(title, dueLabel) }, enabled = title.isNotBlank() && dueLabel.isNotBlank(), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)) { Text("Save") } },
+        text = { Column { AuthField("Task title", title, { title = it }); DateTimePickerField("Due date and time", dueLabel) { label, millis -> dueLabel = label; dueTimestamp = millis } } },
+        confirmButton = { Button(onClick = { onSave(title, dueLabel, dueTimestamp) }, enabled = title.isNotBlank() && dueLabel.isNotBlank(), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)) { Text("Save") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = OrangeDeep) } }
     )
 }
 
 @Composable
-private fun EventDialog(onDismiss: () -> Unit, onSave: (String, String, String) -> Unit) {
+private fun EventDialog(onDismiss: () -> Unit, onSave: (String, String, Long) -> Unit) {
     var title by remember { mutableStateOf("") }
     var timeLabel by remember { mutableStateOf("") }
+    var timeTimestamp by remember { mutableStateOf(0L) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Add an event", fontWeight = FontWeight.Bold) },
-        text = { Column { AuthField("Event title", title, { title = it }); DateTimePickerField("Event date and time", timeLabel) { timeLabel = it } } },
-        confirmButton = { Button(onClick = { onSave(title, timeLabel, "coral") }, enabled = title.isNotBlank() && timeLabel.isNotBlank(), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)) { Text("Save") } },
+        text = { Column { AuthField("Event title", title, { title = it }); DateTimePickerField("Event date and time", timeLabel) { label, millis -> timeLabel = label; timeTimestamp = millis } } },
+        confirmButton = { Button(onClick = { onSave(title, timeLabel, timeTimestamp) }, enabled = title.isNotBlank() && timeLabel.isNotBlank(), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)) { Text("Save") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = OrangeDeep) } }
     )
 }
 
 @Composable
-private fun ReminderDialog(onDismiss: () -> Unit, onSave: (String, String) -> Unit) {
+private fun ReminderDialog(onDismiss: () -> Unit, onSave: (String, String, Long) -> Unit) {
     var title by remember { mutableStateOf("") }
     var scheduleLabel by remember { mutableStateOf("") }
+    var scheduledTimeMillis by remember { mutableStateOf(0L) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Add a reminder", fontWeight = FontWeight.Bold) },
-        text = { Column { AuthField("Reminder", title, { title = it }); DateTimePickerField("Reminder date and time", scheduleLabel) { scheduleLabel = it } } },
-        confirmButton = { Button(onClick = { onSave(title, scheduleLabel) }, enabled = title.isNotBlank() && scheduleLabel.isNotBlank(), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)) { Text("Save") } },
+        text = { Column { AuthField("Reminder", title, { title = it }); DateTimePickerField("Reminder date and time", scheduleLabel) { label, millis -> scheduleLabel = label; scheduledTimeMillis = millis } } },
+        confirmButton = { Button(onClick = { onSave(title, scheduleLabel, scheduledTimeMillis) }, enabled = title.isNotBlank() && scheduleLabel.isNotBlank(), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)) { Text("Save") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = OrangeDeep) } }
     )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DateTimePickerField(label: String, value: String, onValueChange: (String) -> Unit) {
+private fun DateTimePickerField(label: String, value: String, onValueChange: (String, Long) -> Unit) {
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
     var selectedDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -1036,9 +1075,10 @@ private fun DateTimePickerField(label: String, value: String, onValueChange: (St
             text = { TimePicker(state = state) },
             confirmButton = {
                 TextButton(onClick = {
-                    val date = Date(stateToMillis(state, selectedDateMillis))
+                    val millis = stateToMillis(state, selectedDateMillis)
+                    val date = Date(millis)
                     val formatter = SimpleDateFormat("EEE, MMM d • h:mm a", Locale.US)
-                    onValueChange(formatter.format(date))
+                    onValueChange(formatter.format(date), millis)
                     showTimePicker = false
                 }) { Text("Done", color = OrangeDeep) }
             },
@@ -1219,11 +1259,11 @@ private fun DashboardPreview() { PreviewTheme { DashboardScreen(PreviewSnapshot.
 
 @Preview(name = "Tasks", showBackground = true, widthDp = 390, heightDp = 844)
 @Composable
-private fun TasksPreview() { PreviewTheme { TasksScreen(PreviewSnapshot.tasks, InMemoryLifeOsRepository()) } }
+private fun TasksPreview() { PreviewTheme { TasksScreen(PreviewSnapshot.tasks, InMemoryLifeOsRepository(), LocalContext.current) } }
 
 @Preview(name = "Calendar", showBackground = true, widthDp = 390, heightDp = 844)
 @Composable
-private fun CalendarPreview() { PreviewTheme { CalendarScreen(PreviewSnapshot.events, InMemoryLifeOsRepository()) } }
+private fun CalendarPreview() { PreviewTheme { CalendarScreen(PreviewSnapshot.events, InMemoryLifeOsRepository(), LocalContext.current) } }
 
 @Preview(name = "Notes", showBackground = true, widthDp = 390, heightDp = 844)
 @Composable
@@ -1235,7 +1275,7 @@ private fun ExpensesPreview() { PreviewTheme { ExpensesScreen(PreviewSnapshot, I
 
 @Preview(name = "Reminders", showBackground = true, widthDp = 390, heightDp = 844)
 @Composable
-private fun RemindersPreview() { PreviewTheme { RemindersScreen(PreviewSnapshot.reminders, InMemoryLifeOsRepository()) } }
+private fun RemindersPreview() { PreviewTheme { RemindersScreen(PreviewSnapshot.reminders, InMemoryLifeOsRepository(), LocalContext.current) } }
 
 @Preview(name = "Profile", showBackground = true, widthDp = 390, heightDp = 844)
 @Composable

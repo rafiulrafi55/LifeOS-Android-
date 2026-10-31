@@ -11,14 +11,16 @@ data class LifeOsTask(
     val id: String,
     val title: String,
     val dueLabel: String,
-    val completed: Boolean = false
+    val completed: Boolean = false,
+    val dueTimestamp: Long = 0L
 )
 
 data class LifeOsEvent(
     val id: String,
     val title: String,
     val timeLabel: String,
-    val colorKey: String
+    val colorKey: String,
+    val timestamp: Long = 0L
 )
 
 data class LifeOsNote(
@@ -46,7 +48,8 @@ data class LifeOsCapital(
 data class LifeOsReminder(
     val id: String,
     val title: String,
-    val scheduleLabel: String
+    val scheduleLabel: String,
+    val scheduledTimeMillis: Long = 0
 )
 
 data class LifeOsSnapshot(
@@ -188,20 +191,20 @@ class FirebaseLifeOsRepository(context: Context) : LifeOsRepository {
     }
 
     private fun snapshotDocument(snapshot: LifeOsSnapshot): Map<String, Any> = mapOf(
-        "tasks" to snapshot.tasks.map { mapOf("id" to it.id, "title" to it.title, "dueLabel" to it.dueLabel, "completed" to it.completed) },
-        "events" to snapshot.events.map { mapOf("id" to it.id, "title" to it.title, "timeLabel" to it.timeLabel, "colorKey" to it.colorKey) },
+        "tasks" to snapshot.tasks.map { mapOf("id" to it.id, "title" to it.title, "dueLabel" to it.dueLabel, "completed" to it.completed, "dueTimestamp" to it.dueTimestamp) },
+        "events" to snapshot.events.map { mapOf("id" to it.id, "title" to it.title, "timeLabel" to it.timeLabel, "colorKey" to it.colorKey, "timestamp" to it.timestamp) },
         "notes" to snapshot.notes.map { mapOf("id" to it.id, "title" to it.title, "preview" to it.preview, "updatedLabel" to it.updatedLabel) },
         "expenses" to snapshot.expenses.map { mapOf("id" to it.id, "merchant" to it.merchant, "category" to it.category, "amount" to it.amount, "timestamp" to it.timestamp) },
-        "reminders" to snapshot.reminders.map { mapOf("id" to it.id, "title" to it.title, "scheduleLabel" to it.scheduleLabel) },
+        "reminders" to snapshot.reminders.map { mapOf("id" to it.id, "title" to it.title, "scheduleLabel" to it.scheduleLabel, "scheduledTimeMillis" to it.scheduledTimeMillis) },
         "capitals" to snapshot.capitals.map { mapOf("id" to it.id, "source" to it.source, "amount" to it.amount, "timestamp" to it.timestamp) }
     )
 
     private fun snapshotFromDocument(data: Map<String, Any>): LifeOsSnapshot = LifeOsSnapshot(
-        tasks = (data["tasks"] as? List<*>).orEmpty().mapNotNull { (it as? Map<*, *>)?.let { item -> LifeOsTask(item["id"].toString(), item["title"].toString(), item["dueLabel"].toString(), item["completed"] as? Boolean ?: false) } },
-        events = (data["events"] as? List<*>).orEmpty().mapNotNull { (it as? Map<*, *>)?.let { item -> LifeOsEvent(item["id"].toString(), item["title"].toString(), item["timeLabel"].toString(), item["colorKey"].toString()) } },
+        tasks = (data["tasks"] as? List<*>).orEmpty().mapNotNull { (it as? Map<*, *>)?.let { item -> LifeOsTask(item["id"].toString(), item["title"].toString(), item["dueLabel"].toString(), item["completed"] as? Boolean ?: false, (item["dueTimestamp"] as? Long) ?: 0L) } },
+        events = (data["events"] as? List<*>).orEmpty().mapNotNull { (it as? Map<*, *>)?.let { item -> LifeOsEvent(item["id"].toString(), item["title"].toString(), item["timeLabel"].toString(), item["colorKey"].toString(), (item["timestamp"] as? Long) ?: 0L) } },
         notes = (data["notes"] as? List<*>).orEmpty().mapNotNull { (it as? Map<*, *>)?.let { item -> LifeOsNote(item["id"].toString(), item["title"].toString(), item["preview"].toString(), item["updatedLabel"].toString()) } },
         expenses = (data["expenses"] as? List<*>).orEmpty().mapNotNull { (it as? Map<*, *>)?.let { item -> LifeOsExpense(item["id"].toString(), item["merchant"].toString(), item["category"].toString(), item["amount"].toString(), (item["timestamp"] as? Long) ?: System.currentTimeMillis()) } },
-        reminders = (data["reminders"] as? List<*>).orEmpty().mapNotNull { (it as? Map<*, *>)?.let { item -> LifeOsReminder(item["id"].toString(), item["title"].toString(), item["scheduleLabel"].toString()) } },
+        reminders = (data["reminders"] as? List<*>).orEmpty().mapNotNull { (it as? Map<*, *>)?.let { item -> LifeOsReminder(item["id"].toString(), item["title"].toString(), item["scheduleLabel"].toString(), (item["scheduledTimeMillis"] as? Long) ?: 0L) } },
         capitals = (data["capitals"] as? List<*>).orEmpty().mapNotNull { (it as? Map<*, *>)?.let { item -> LifeOsCapital(item["id"].toString(), item["source"].toString(), item["amount"].toString(), (item["timestamp"] as? Long) ?: System.currentTimeMillis()) } }
     )
 
@@ -222,7 +225,7 @@ class FirebaseLifeOsRepository(context: Context) : LifeOsRepository {
                 if (result == null || result.isEmpty) return@addSnapshotListener
                 val tasks = result.documents.mapNotNull { document ->
                     document.toObject(FirestoreTask::class.java)?.let { task ->
-                        LifeOsTask(document.id, task.title, task.dueLabel, task.completed)
+                        LifeOsTask(document.id, task.title, task.dueLabel, task.completed, task.dueTimestamp)
                     }
                 }
                 val updated = snapshot.value.copy(tasks = tasks)
@@ -234,7 +237,8 @@ class FirebaseLifeOsRepository(context: Context) : LifeOsRepository {
     private data class FirestoreTask(
         val title: String = "",
         val dueLabel: String = "",
-        val completed: Boolean = false
+        val completed: Boolean = false,
+        val dueTimestamp: Long = 0L
     )
 
     private fun fallbackSnapshot(): LifeOsSnapshot = fallback.observeSnapshotValue()
