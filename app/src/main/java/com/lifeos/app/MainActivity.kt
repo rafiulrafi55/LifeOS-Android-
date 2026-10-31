@@ -626,10 +626,12 @@ private fun ExpensesScreen(snapshot: LifeOsSnapshot, repository: LifeOsRepositor
     }
     val remainingColor = if (remainingCapital < 0) Coral else Color.White
 
-    val allActivity = (snapshot.expenses.map { Triple(it.merchant, it.category, (it.amount.toDoubleOrNull()?.let { -it } ?: 0.0)) } +
+    val allActivity = remember(snapshot.expenses, snapshot.capitals, searchQuery) {
+        (snapshot.expenses.map { Triple(it.merchant, it.category, (it.amount.toDoubleOrNull()?.let { -it } ?: 0.0)) } +
                          snapshot.capitals.map { Triple(it.source, "Capital", (it.amount.toDoubleOrNull() ?: 0.0)) })
                          .sortedByDescending { it.third }
                          .filter { searchQuery.isBlank() || it.first.contains(searchQuery, ignoreCase = true) || it.second.contains(searchQuery, ignoreCase = true) }
+    }
 
     val categories = snapshot.expenses.map { it.category }.distinct()
 
