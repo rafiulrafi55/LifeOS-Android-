@@ -619,6 +619,12 @@ private fun ExpensesScreen(snapshot: LifeOsSnapshot, repository: LifeOsRepositor
     val totalExpenses = totalLifeOsExpenses(snapshot.expenses)
     val totalCapitals = totalLifeOsCapitals(snapshot.capitals)
     val remainingCapital = totalCapitals - totalExpenses
+    val remainingText = if (remainingCapital < 0) {
+        "-${formatLifeOsAmount(Math.abs(remainingCapital).toString(), currency)}"
+    } else {
+        formatLifeOsAmount(remainingCapital.toString(), currency)
+    }
+    val remainingColor = if (remainingCapital < 0) Coral else Color.White
 
     val filteredExpenses = snapshot.expenses.filter {
         searchQuery.isBlank() || it.merchant.contains(searchQuery, ignoreCase = true) || it.category.contains(searchQuery, ignoreCase = true)
@@ -631,7 +637,7 @@ private fun ExpensesScreen(snapshot: LifeOsSnapshot, repository: LifeOsRepositor
                 Column(Modifier.fillMaxWidth().padding(20.dp)) { Text("TOTAL EXPENSE", color = OrangePale, style = MaterialTheme.typography.labelMedium, letterSpacing = 1.sp); Spacer(Modifier.height(7.dp)); Text(formatLifeOsAmount(totalExpenses.toString(), currency), color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
             }
             Card(modifier = Modifier.weight(1f).background(Brush.linearGradient(listOf(Moss, Teal)), RoundedCornerShape(20.dp)), colors = CardDefaults.cardColors(containerColor = Color.Transparent), shape = RoundedCornerShape(20.dp)) {
-                Column(Modifier.fillMaxWidth().padding(20.dp)) { Text("REMAINING", color = Color(0xFFE0F2F1), style = MaterialTheme.typography.labelMedium, letterSpacing = 1.sp); Spacer(Modifier.height(7.dp)); Text(formatLifeOsAmount(remainingCapital.toString(), currency), color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
+                Column(Modifier.fillMaxWidth().padding(20.dp)) { Text("REMAINING", color = Color(0xFFE0F2F1), style = MaterialTheme.typography.labelMedium, letterSpacing = 1.sp); Spacer(Modifier.height(7.dp)); Text(remainingText, color = remainingColor, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
             }
         }
         Spacer(Modifier.height(16.dp))
