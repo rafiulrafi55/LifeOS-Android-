@@ -869,6 +869,7 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
     var showProfileEdit by remember { mutableStateOf(false) }
     var showGoalEdit by remember { mutableStateOf(false) }
     var showNotifications by remember { mutableStateOf(false) }
+    var showTerms by remember { mutableStateOf(false) }
     ModuleColumn("Profile", "Shape LifeOS around your life") {
         Card(
             modifier = Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(OrangeDeep, Orange)), RoundedCornerShape(26.dp)),
@@ -903,6 +904,7 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
         ProfileOption("Personal details", "Name, email and account", "A") { showProfileEdit = true }
         ProfileOption("Goals and preferences", profile.goal.ifBlank { "Add your primary goal" }, "G") { showGoalEdit = true }
         ProfileOption("Notifications", if (profile.notificationsEnabled) "Reminders are enabled" else "Reminders are muted", "N") { showNotifications = true }
+        ProfileOption("Terms and Conditions", "Read our legal agreement", "T") { showTerms = true }
         ProfileOption("Connected services", "Google and other tools", "C") { showConnectedServices = !showConnectedServices }
         if (showConnectedServices) {
             FirebaseSyncPanel(
@@ -914,7 +916,7 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
                     syncMessage = null
                     repository?.syncToFirebase { result ->
                         syncing = false
-                        syncMessage = result.fold({ "Everything is synced with Firebase." }, { it.message ?: "Sync failed. Try again." })
+                        syncMessage = result.fold({ "Everything is synced successfully" }, { it.message ?: "Sync failed. Try again." })
                     }
                 },
                 onRestore = {
@@ -927,7 +929,7 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
                         profileResult?.getOrNull()?.let { profile = it }
                         restoring = false
                         syncMessage = if (moduleResult!!.isSuccess && profileResult!!.isSuccess) {
-                            "Firebase data and profile restored to this device."
+                            "Data and profile restored to this device."
                         } else if (moduleResult!!.isSuccess) {
                             "LifeOS data restored. Profile restore failed."
                         } else if (profileResult!!.isSuccess) {
@@ -1008,6 +1010,31 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
                 }
             },
             confirmButton = { TextButton(onClick = { showNotifications = false }) { Text("Done", color = OrangeDeep) } }
+        )
+    }
+    if (showTerms) {
+        AlertDialog(
+            onDismissRequest = { showTerms = false },
+            title = { Text("Terms and Conditions", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    Text(
+                        "Welcome to LifeOS. By using our app, you agree to the following terms and conditions:\n\n" +
+                        "1. **Use of Service**: LifeOS is designed to help you organize your tasks, events, notes, expenses, and reminders. You are responsible for maintaining the accuracy of the data you enter.\n\n" +
+                        "2. **Data & Privacy**: Your data is stored locally on your device. If you choose to use synchronization, your data will be securely stored in the cloud associated with your authenticated account.\n\n" +
+                        "3. **Account Security**: You are responsible for safeguarding your login credentials and account access.\n\n" +
+                        "4. **Modifications**: We reserve the right to modify these terms at any time. Continued use of the app constitutes acceptance of the updated terms.\n\n" +
+                        "5. **Disclaimer**: LifeOS is provided 'as is' without warranty of any kind, express or implied.",
+                        color = Color(0xFF63706A),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showTerms = false }) {
+                    Text("Close", color = OrangeDeep)
+                }
+            }
         )
     }
 }
