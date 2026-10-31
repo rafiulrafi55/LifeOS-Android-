@@ -99,7 +99,7 @@ private val Teal = Color(0xFF4B9D99)
 private val Orange = Color(0xFFF28A4B)
 private val OrangeDeep = Color(0xFFE75B35)
 private val OrangePale = Color(0xFFFFE8D8)
-private const val GoogleWebClientId = "294255605490-p7nvp9s3j1d1obd93oqklprisfqh1qfa.apps.googleusercontent.com"
+private const val GoogleWebClientId = "294255605490-dn0l52gqv0n28um5pgukvuqnanrnd4s2.apps.googleusercontent.com"
 
 class MainActivity : ComponentActivity() {
     private val repository: LifeOsRepository by lazy { FirebaseLifeOsRepository(applicationContext) }
