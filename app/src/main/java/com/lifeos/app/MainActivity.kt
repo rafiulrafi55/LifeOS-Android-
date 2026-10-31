@@ -453,60 +453,123 @@ private fun currentDateStrip(): List<String> {
 @Composable
 private fun DashboardScreen(snapshot: LifeOsSnapshot, context: Context, displayName: String, onModuleSelected: (LifeOsModule) -> Unit) {
     val currency = remember(context) { CurrencyStore(context).read() }
+    val totalExpenses = totalLifeOsExpenses(snapshot.expenses)
+    val totalCapitals = totalLifeOsCapitals(snapshot.capitals)
+    val remainingCapital = totalCapitals - totalExpenses
+    val remainingText = if (remainingCapital < 0) {
+        "-${formatLifeOsAmount(Math.abs(remainingCapital).toString(), currency)}"
+    } else {
+        formatLifeOsAmount(remainingCapital.toString(), currency)
+    }
+
+    data class ActivityItem(val title: String, val category: String, val amount: Double, val timestamp: Long)
+
+    val allActivity = remember(snapshot.expenses, snapshot.capitals) {
+        (snapshot.expenses.map { ActivityItem(it.merchant, it.category, -(it.amount.toDoubleOrNull() ?: 0.0), it.timestamp) } +
+         snapshot.capitals.map { ActivityItem(it.source, "Capital", (it.amount.toDoubleOrNull() ?: 0.0), it.timestamp) })
+            .sortedByDescending { it.timestamp }
+    }
+
     Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFFFFF5EC), Color(0xFFFFE5D2), Sand)))) {
         LazyColumn(Modifier.fillMaxSize().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(16.dp))
                 Text("Good morning${if (displayName.isBlank()) "" else ", $displayName"}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Ink)
                 Text("A clear day starts with a clear view.", color = Color(0xFF63706A))
             }
             item {
                 Card(
-                    modifier = Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(OrangeDeep, Orange)), RoundedCornerShape(24.dp)),
-                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
                     shape = RoundedCornerShape(24.dp)
                 ) {
-                    Column(Modifier.padding(22.dp)) {
-                        Text("TODAY'S FOCUS", color = OrangePale, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                        Spacer(Modifier.height(8.dp))
-                        Text("Make space for what matters.", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(18.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("${snapshot.tasks.count { !it.completed }} tasks", color = Color.White, fontWeight = FontWeight.SemiBold)
-                            Text("•", color = OrangePale)
-                            Text("${snapshot.events.size} events", color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Column(Modifier.padding(16.dp)) {
+                        Text("Financial Overview", fontWeight = FontWeight.Bold, color = Ink)
+                        Spacer(Modifier.height(12.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Card(
+                                modifier = Modifier.weight(1f).background(Brush.linearGradient(listOf(OrangeDeep, Orange)), RoundedCornerShape(16.dp)),
+                                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+                                Column(Modifier.padding(16.dp)) {
+                                    Text("EXPENSE", color = OrangePale, style = MaterialTheme.typography.labelMedium)
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(formatLifeOsAmount(totalExpenses.toString(), currency), color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            Card(
+                                modifier = Modifier.weight(1f).background(Brush.linearGradient(listOf(Moss, Teal)), RoundedCornerShape(16.dp)),
+                                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+                                Column(Modifier.padding(16.dp)) {
+                                    Text("REMAINING", color = Color(0xFFE0F2F1), style = MaterialTheme.typography.labelMedium)
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(remainingText, color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
                     }
                 }
             }
-            item { SectionHeader("Up next", "View calendar") { onModuleSelected(LifeOsModule.Calendar) } }
-            if (snapshot.events.isNotEmpty()) {
-                item {
-                    Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
-                        Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) { snapshot.events.take(2).forEach { EventRow(it) } }
-                    }
-                }
-            }
-            item { SectionHeader("Your rhythm", "All tasks") { onModuleSelected(LifeOsModule.Tasks) } }
-            if (snapshot.tasks.isNotEmpty()) {
-                item {
-                    Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
-                        Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) { snapshot.tasks.take(3).forEach { task -> TaskRow(task) {} } }
-                    }
-                }
-            }
-            if (snapshot.expenses.isNotEmpty()) {
-                item {
-                    SectionHeader("Money this month", "View expenses") { onModuleSelected(LifeOsModule.Expenses) }
-                    Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
-                        Row(Modifier.fillMaxWidth().padding(20.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Column { Text("Total spending", color = Color(0xFF63706A)); Text(formatLifeOsAmount(totalLifeOsExpenses(snapshot.expenses).toString(), currency), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Ink) }
-                            Text("${snapshot.expenses.size} entries", color = OrangeDeep, fontWeight = FontWeight.Bold)
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Card(modifier = Modifier.weight(1f).clickable { onModuleSelected(LifeOsModule.Tasks) }, colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
+                        Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Tasks", color = Color(0xFF63706A), style = MaterialTheme.typography.labelSmall)
+                            Spacer(Modifier.height(4.dp))
+                            Text("${snapshot.tasks.size}", fontWeight = FontWeight.Bold, color = Ink, style = MaterialTheme.typography.titleMedium)
                         }
                     }
-                    Spacer(Modifier.height(20.dp))
+                    Card(modifier = Modifier.weight(1f).clickable { onModuleSelected(LifeOsModule.Calendar) }, colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
+                        Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Events", color = Color(0xFF63706A), style = MaterialTheme.typography.labelSmall)
+                            Spacer(Modifier.height(4.dp))
+                            Text("${snapshot.events.size}", fontWeight = FontWeight.Bold, color = Ink, style = MaterialTheme.typography.titleMedium)
+                        }
+                    }
+                    Card(modifier = Modifier.weight(1f).clickable { onModuleSelected(LifeOsModule.Notes) }, colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
+                        Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Notes", color = Color(0xFF63706A), style = MaterialTheme.typography.labelSmall)
+                            Spacer(Modifier.height(4.dp))
+                            Text("${snapshot.notes.size}", fontWeight = FontWeight.Bold, color = Ink, style = MaterialTheme.typography.titleMedium)
+                        }
+                    }
+                    Card(modifier = Modifier.weight(1f).clickable { onModuleSelected(LifeOsModule.Reminders) }, colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
+                        Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Reminders", color = Color(0xFF63706A), style = MaterialTheme.typography.labelSmall)
+                            Spacer(Modifier.height(4.dp))
+                            Text("${snapshot.reminders.size}", fontWeight = FontWeight.Bold, color = Ink, style = MaterialTheme.typography.titleMedium)
+                        }
+                    }
                 }
             }
+            item {
+                Text("Recent Activity", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Ink)
+            }
+            if (allActivity.isNotEmpty()) {
+                item {
+                    Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
+                        Column(Modifier.padding(horizontal = 18.dp, vertical = 12.dp)) {
+                            allActivity.take(5).forEach { item ->
+                                val isExpense = item.amount < 0
+                                val displayAmount = Math.abs(item.amount)
+                                Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Column { Text(item.title, fontWeight = FontWeight.SemiBold); Text(item.category, color = Color(0xFF63706A), style = MaterialTheme.typography.labelMedium) }
+                                    Text(
+                                        (if (isExpense) "-" else "+") + formatLifeOsAmount(displayAmount.toString(), currency),
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isExpense) Coral else Moss
+                                    )
+                                }
+                                HorizontalDivider(color = Color(0xFFE3E8E3))
+                            }
+                        }
+                    }
+                }
+            }
+            item { Spacer(Modifier.height(20.dp)) }
         }
     }
 }
