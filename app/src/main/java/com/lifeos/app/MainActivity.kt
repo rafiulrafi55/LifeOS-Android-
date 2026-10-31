@@ -954,6 +954,23 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
         }
         Spacer(Modifier.height(10.dp))
         OutlinedButton(onClick = { authRepository?.signOut() }, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), border = androidx.compose.foundation.BorderStroke(1.dp, OrangePale)) { Text("Sign out", color = OrangeDeep, fontWeight = FontWeight.SemiBold) }
+        Spacer(Modifier.height(12.dp))
+        val currentContext = LocalContext.current
+        val appVersion = remember {
+            try {
+                val pInfo = currentContext.packageManager.getPackageInfo(currentContext.packageName, 0)
+                pInfo.versionName ?: "0.1.6b"
+            } catch (e: Exception) {
+                "0.1.6b"
+            }
+        }
+        Text(
+            "Version $appVersion (Beta)",
+            color = Color(0xFF63706A),
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.Center
+        )
     }
     if (showProfileEdit) {
         ProfileEditDialog(profile, { showProfileEdit = false }) { updated -> profile = updated; userId?.let { profileStore?.save(it, updated) }; showProfileEdit = false }
