@@ -626,9 +626,11 @@ private fun ExpensesScreen(snapshot: LifeOsSnapshot, repository: LifeOsRepositor
     }
     val remainingColor = if (remainingCapital < 0) Coral else Color.White
 
-    val filteredExpenses = snapshot.expenses.filter {
-        searchQuery.isBlank() || it.merchant.contains(searchQuery, ignoreCase = true) || it.category.contains(searchQuery, ignoreCase = true)
-    }
+    val allActivity = (snapshot.expenses.map { Triple(it.merchant, it.category, (it.amount.toDoubleOrNull()?.let { -it } ?: 0.0)) } +
+                         snapshot.capitals.map { Triple(it.source, "Capital", (it.amount.toDoubleOrNull() ?: 0.0)) })
+                         .sortedByDescending { it.third }
+                         .filter { searchQuery.isBlank() || it.first.contains(searchQuery, ignoreCase = true) || it.second.contains(searchQuery, ignoreCase = true) }
+
     val categories = snapshot.expenses.map { it.category }.distinct()
 
     ModuleColumn("Money", "A calmer view of your spending.") {
@@ -651,14 +653,23 @@ private fun ExpensesScreen(snapshot: LifeOsSnapshot, repository: LifeOsRepositor
         OutlinedTextField(value = searchQuery, onValueChange = { searchQuery = it }, label = { Text("Search activity") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         Spacer(Modifier.height(16.dp))
 
-        if (filteredExpenses.isNotEmpty()) {
+        if (allActivity.isNotEmpty()) {
             Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
                 Column(Modifier.padding(horizontal = 18.dp, vertical = 12.dp)) {
                     Text("Recent activity", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    filteredExpenses.forEach { expense ->
-                        Row(Modifier.fillMaxWidth().padding(vertical = 14.dp).clickable { editingExpense = expense }, horizontalArrangement = Arrangement.SpaceBetween) {
-                            Column { Text(expense.merchant, fontWeight = FontWeight.SemiBold); Text(expense.category, color = Color(0xFF63706A), style = MaterialTheme.typography.labelMedium) };
-                            Text(formatLifeOsAmount(expense.amount, currency), fontWeight = FontWeight.Bold, color = OrangeDeep)
+                    allActivity.forEach { (title, category, amount) ->
+                        val isExpense = amount != null && amount < 0
+                        val displayAmount = amount?.let { Math.abs(it) } ?: 0.0
+                        Row(Modifier.fillMaxWidth().padding(vertical = 14.dp).clickable { if (isExpense && amount != null) {
+                            val expense = snapshot.expenses.first { it.merchant == title && it.category == category && it.amount == displayAmount.toString() }
+                            editingExpense = expense
+                        }}, horizontalArrangement = Arrangement.SpaceBetween) {
+                            Column { Text(title, fontWeight = FontWeight.SemiBold); Text(category, color = Color(0xFF63706A), style = MaterialTheme.typography.labelMedium) };
+                            Text(
+                                (if (isExpense) "-" else "+") + formatLifeOsAmount(displayAmount.toString(), currency),
+                                fontWeight = FontWeight.Bold,
+                                color = if (isExpense) Coral else Moss
+                            )
                         }
                         HorizontalDivider(color = Color(0xFFE3E8E3))
                     }
