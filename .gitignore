@@ -5,6 +5,8 @@ local.properties
 .gradle/
 build/
 app/build/
+app/release/
+app/release/*.apk
 
 # IDE files
 .idea/
