@@ -92,6 +92,9 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Note
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.toArgb
+import kotlin.math.roundToInt
 
 private fun greetingForNow(): String = when (java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) {
     in 5..11 -> "Good Morning"
@@ -105,9 +108,21 @@ private fun greetingMessageForNow(): String = when (greetingForNow()) {
     else -> "Wind down and plan a calm tomorrow"
 }
 
+private val DefaultAccent = Color(0xFFE75B35)
+
 private object AppTheme {
     var dark by mutableStateOf(false)
     var amoled by mutableStateOf(false)
+    var accent by mutableStateOf(DefaultAccent)
+}
+
+private fun readAccent(context: Context): Color {
+    val prefs = themePrefs(context)
+    return if (prefs.contains("accent")) Color(prefs.getInt("accent", DefaultAccent.toArgb())) else DefaultAccent
+}
+
+private fun saveAccent(context: Context, color: Color) {
+    themePrefs(context).edit().putInt("accent", color.toArgb()).apply()
 }
 
 private const val ThemeFollowSystem = "system"
@@ -235,14 +250,21 @@ private val Sand: Color get() = if (AppTheme.dark) (if (AppTheme.amoled) Color.B
 private val Paper: Color get() = if (AppTheme.dark) Color(0xFF1E2423) else Color.White
 private val Muted: Color get() = if (AppTheme.dark) Color(0xFF9AA6A0) else Color(0xFF63706A)
 private val Teal = Color(0xFF4B9D99)
-private val Orange = Color(0xFFF28A4B)
-private val OrangeDeep = Color(0xFFE75B35)
-private val OrangePale: Color get() = if (AppTheme.dark) Color(0xFF3B2A20) else Color(0xFFFFE8D8)
-private val OrangeLight = Color(0xFFFFE8D8)
+private val isDefaultAccent: Boolean get() = AppTheme.accent == DefaultAccent
+private val Orange: Color get() = if (isDefaultAccent) Color(0xFFF28A4B) else lerp(AppTheme.accent, Color.White, 0.22f)
+private val OrangeDeep: Color get() = AppTheme.accent
+private val OrangePale: Color get() = when {
+    AppTheme.dark -> if (isDefaultAccent) Color(0xFF3B2A20) else lerp(AppTheme.accent, Color.Black, 0.78f)
+    else -> if (isDefaultAccent) Color(0xFFFFE8D8) else lerp(AppTheme.accent, Color.White, 0.86f)
+}
+private val OrangeLight: Color get() = if (isDefaultAccent) Color(0xFFFFE8D8) else lerp(AppTheme.accent, Color.White, 0.86f)
+private val LightWashTop: Color get() = if (isDefaultAccent) Color(0xFFFFF5EC) else lerp(AppTheme.accent, Color.White, 0.95f)
+private val LightWashMid: Color get() = if (isDefaultAccent) Color(0xFFFFE5D2) else lerp(AppTheme.accent, Color.White, 0.88f)
+private val AuthWash: Brush get() = Brush.linearGradient(listOf(LightWashTop, if (isDefaultAccent) Color(0xFFFFD1B2) else lerp(AppTheme.accent, Color.White, 0.7f), Orange))
 private val Wash: Brush get() = when {
     AppTheme.dark && AppTheme.amoled -> Brush.linearGradient(listOf(Color.Black, Color.Black))
     AppTheme.dark -> Brush.linearGradient(listOf(Color(0xFF1B1613), Color(0xFF171A19), Sand))
-    else -> Brush.linearGradient(listOf(Color(0xFFFFF5EC), Color(0xFFFFE5D2), Sand))
+    else -> Brush.linearGradient(listOf(LightWashTop, LightWashMid, Sand))
 }
 private val Divider: Color get() = if (AppTheme.dark) Color(0xFF2E3634) else Color(0xFFE3E8E3)
 private val Outline: Color get() = if (AppTheme.dark) Color(0xFF343D3A) else Color(0xFFE6DED7)
@@ -268,6 +290,7 @@ class MainActivity : ComponentActivity() {
         val notificationManager = LifeOsNotificationManager(applicationContext)
         notificationManager.scheduleMorningEventNotifications(applicationContext, "")
 
+        AppTheme.accent = readAccent(applicationContext)
         requestedModule = intent?.getStringExtra(LifeOsNotificationManager.EXTRA_OPEN_MODULE)
         setContent { LifeOsApp(repository, authRepository, requestedModule) { requestedModule = null } }
     }
@@ -438,7 +461,7 @@ private fun AuthScreen(authRepository: AuthRepository) {
 
     Box(
         modifier = Modifier.fillMaxSize().background(
-            Brush.linearGradient(listOf(Color(0xFFFFF5EC), Color(0xFFFFD1B2), Color(0xFFF28A4B)))
+            AuthWash
         )
     ) {
         Column(
@@ -1252,6 +1275,44 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
 }
 
 @Composable
+private fun AccentPicker() {
+    val context = LocalContext.current
+    val accent = AppTheme.accent
+    val channels = listOf("Red" to Color(0xFFE53935), "Green" to Color(0xFF43A047), "Blue" to Color(0xFF1E88E5))
+    val values = listOf(accent.red, accent.green, accent.blue)
+    fun update(index: Int, value: Float) {
+        val next = values.toMutableList().also { it[index] = value }
+        AppTheme.accent = Color(next[0], next[1], next[2])
+    }
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Paper), shape = RoundedCornerShape(18.dp)) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Accent colour", fontWeight = FontWeight.SemiBold, color = Ink)
+                    Text("#%02X%02X%02X".format((accent.red * 255).roundToInt(), (accent.green * 255).roundToInt(), (accent.blue * 255).roundToInt()), color = Muted, style = MaterialTheme.typography.labelMedium)
+                }
+                Box(Modifier.size(36.dp).clip(CircleShape).background(accent))
+            }
+            channels.forEachIndexed { index, (label, tint) ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(label, color = Muted, modifier = Modifier.width(48.dp), style = MaterialTheme.typography.labelMedium)
+                    androidx.compose.material3.Slider(
+                        value = values[index],
+                        onValueChange = { update(index, it) },
+                        onValueChangeFinished = { saveAccent(context, AppTheme.accent) },
+                        colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = tint, activeTrackColor = tint),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+            TextButton(onClick = { AppTheme.accent = DefaultAccent; saveAccent(context, DefaultAccent) }, modifier = Modifier.align(Alignment.End)) {
+                Text("Default", color = OrangeDeep)
+            }
+        }
+    }
+}
+
+@Composable
 private fun ThemeScreen(onBack: () -> Unit, onThemeChange: (dark: Boolean, amoled: Boolean) -> Unit) {
     var showModeDialog by remember { mutableStateOf(false) }
     ModuleColumn("Theme", "Choose how LifeOS looks") {
@@ -1271,6 +1332,8 @@ private fun ThemeScreen(onBack: () -> Unit, onThemeChange: (dark: Boolean, amole
                 )
             }
         }
+        Spacer(Modifier.height(14.dp))
+        AccentPicker()
     }
     if (showModeDialog) {
         AlertDialog(
@@ -1560,7 +1623,7 @@ private fun PreviewTheme(content: @Composable () -> Unit) {
 
 @Composable
 private fun AuthPreviewContent(showSignUp: Boolean) {
-    Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFFFFF5EC), Color(0xFFFFD1B2), Color(0xFFF28A4B)))) ) {
+    Box(Modifier.fillMaxSize().background(AuthWash) ) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.Center) {
             Text("LIFEOS", color = OrangeDeep, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
             Spacer(Modifier.height(8.dp))
