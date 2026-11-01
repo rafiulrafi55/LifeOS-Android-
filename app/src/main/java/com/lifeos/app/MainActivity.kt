@@ -189,13 +189,14 @@ private fun LifeOsApp(repository: LifeOsRepository, authRepository: AuthReposito
                                 Box(
                                     Modifier
                                         .size(34.dp)
-                                        .shadow(if (selectedModule == module) 5.dp else 0.dp, CircleShape, clip = false)
+                                        .shadow(if (selectedModule == module) 3.dp else 0.dp, CircleShape, clip = false)
                                         .clip(CircleShape)
                                         .background(if (selectedModule == module) OrangePale else Color.Transparent),
                                     contentAlignment = Alignment.Center
                                 ) { Icon(module.icon, contentDescription = module.label, tint = if (selectedModule == module) OrangeDeep else Color(0xFF63706A), modifier = Modifier.size(19.dp)) }
                             },
-                            alwaysShowLabel = false
+                            alwaysShowLabel = false,
+                            colors = androidx.compose.material3.NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent)
                         )
                     }
                 }
