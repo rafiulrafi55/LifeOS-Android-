@@ -93,27 +93,139 @@ import androidx.compose.material.icons.filled.Note
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 
+private fun greetingForNow(): String = when (java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) {
+    in 5..11 -> "Good Morning"
+    in 12..17 -> "Good Afternoon"
+    else -> "Good Evening"
+}
+
+private fun greetingMessageForNow(): String = when (greetingForNow()) {
+    "Good Morning" -> "A clear day starts with a clear view"
+    "Good Afternoon" -> "Keep the momentum going"
+    else -> "Wind down and plan a calm tomorrow"
+}
+
 private object AppTheme {
     var dark by mutableStateOf(false)
     var amoled by mutableStateOf(false)
 }
 
-private fun splashThemeRes(context: Context): Int {
-    val prefs = context.getSharedPreferences("lifeos_theme", Context.MODE_PRIVATE)
+private const val ThemeFollowSystem = "system"
+private const val ThemeLight = "light"
+private const val ThemeLcd = "lcd"
+private const val ThemeAmoled = "amoled"
+
+private fun themePrefs(context: Context) = context.applicationContext.getSharedPreferences("lifeos_theme", Context.MODE_PRIVATE)
+
+// Returns null until the user has picked a theme; older installs are migrated from the previous dark/amoled flags.
+private fun readThemeMode(context: Context): String? {
+    val prefs = themePrefs(context)
+    prefs.getString("mode", null)?.let { return it }
+    if (!prefs.contains("dark")) return null
     return when {
-        !prefs.getBoolean("dark", false) -> R.style.Theme_LifeOS_Splash
-        prefs.getBoolean("amoled", false) -> R.style.Theme_LifeOS_Splash_Amoled
-        else -> R.style.Theme_LifeOS_Splash_Dark
+        !prefs.getBoolean("dark", false) -> ThemeLight
+        prefs.getBoolean("amoled", false) -> ThemeAmoled
+        else -> ThemeLcd
     }
 }
 
-// Remembers the theme so the next cold start can show a matching splash screen.
-private fun rememberSplashTheme(context: Context, dark: Boolean, amoled: Boolean) {
-    context.applicationContext.getSharedPreferences("lifeos_theme", Context.MODE_PRIVATE)
-        .edit().putBoolean("dark", dark).putBoolean("amoled", amoled).apply()
+private fun isSystemDark(context: Context): Boolean =
+    context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK == android.content.res.Configuration.UI_MODE_NIGHT_YES
+
+private fun splashThemeRes(context: Context): Int = when (readThemeMode(context) ?: ThemeLight) {
+    ThemeAmoled -> R.style.Theme_LifeOS_Splash_Amoled
+    ThemeLcd -> R.style.Theme_LifeOS_Splash_Dark
+    ThemeFollowSystem -> when {
+        !isSystemDark(context) -> R.style.Theme_LifeOS_Splash
+        themePrefs(context).getBoolean("systemAmoled", false) -> R.style.Theme_LifeOS_Splash_Amoled
+        else -> R.style.Theme_LifeOS_Splash_Dark
+    }
+    else -> R.style.Theme_LifeOS_Splash
+}
+
+// Applies the stored theme to the UI; the sign-in screen is always light.
+private fun syncTheme(context: Context, signedIn: Boolean, systemDark: Boolean) {
+    val mode = readThemeMode(context) ?: ThemeLight
+    val followingDark = mode == ThemeFollowSystem && systemDark
+    AppTheme.dark = signedIn && (mode == ThemeLcd || mode == ThemeAmoled || followingDark)
+    AppTheme.amoled = signedIn && (mode == ThemeAmoled || (followingDark && themePrefs(context).getBoolean("systemAmoled", false)))
+}
+
+private fun needsSystemDarkVariant(context: Context): Boolean =
+    readThemeMode(context) == ThemeFollowSystem && isSystemDark(context) && !themePrefs(context).contains("systemAmoled")
+
+private fun applyThemeMode(context: Context, mode: String, signedIn: Boolean) {
+    themePrefs(context).edit().putString("mode", mode).remove("systemAmoled").apply()
+    syncTheme(context, signedIn, isSystemDark(context))
+    refreshSplashTheme(context)
+}
+
+private fun applySystemDarkVariant(context: Context, amoled: Boolean) {
+    themePrefs(context).edit().putBoolean("systemAmoled", amoled).apply()
+    syncTheme(context, true, true)
+    refreshSplashTheme(context)
+}
+
+private fun refreshSplashTheme(context: Context) {
     if (android.os.Build.VERSION.SDK_INT >= 33 && context is Activity) {
         context.splashScreen.setSplashScreenTheme(splashThemeRes(context))
     }
+}
+
+@Composable
+private fun DarkVariantDialog(onPick: (amoled: Boolean) -> Unit, onDismiss: (() -> Unit)? = null) {
+    AlertDialog(
+        onDismissRequest = { onDismiss?.invoke() },
+        title = { Text("Choose dark mode type", fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                Text("LCD keeps the soft dark grey look. AMOLED uses a pitch black background to save battery on OLED screens.", color = Muted)
+                Spacer(Modifier.height(14.dp))
+                Button(
+                    onClick = { onPick(false) },
+                    modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)
+                ) { Text("LCD") }
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { onPick(true) },
+                    modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, OrangeDeep)
+                ) { Text("AMOLED", color = OrangeDeep) }
+            }
+        },
+        confirmButton = {},
+        dismissButton = onDismiss?.let { dismiss -> { TextButton(onClick = dismiss) { Text("Cancel", color = OrangeDeep) } } }
+    )
+}
+
+@Composable
+private fun FirstLaunchThemeDialog(onChosen: (String) -> Unit) {
+    val options = listOf(
+        ThemeFollowSystem to "Follow System",
+        ThemeLight to "Light",
+        ThemeLcd to "Dark Mode : LCD",
+        ThemeAmoled to "Dark Mode : AMOLED"
+    )
+    AlertDialog(
+        onDismissRequest = {},
+        title = { Text("Choose your theme", fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                Text("You can change this later from Profile > Theme.", color = Muted)
+                Spacer(Modifier.height(14.dp))
+                options.forEach { (mode, label) ->
+                    OutlinedButton(
+                        onClick = { onChosen(mode) },
+                        modifier = Modifier.fillMaxWidth().height(50.dp).padding(bottom = 8.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, OrangeDeep)
+                    ) { Text(label, color = OrangeDeep, fontWeight = FontWeight.SemiBold) }
+                }
+            }
+        },
+        confirmButton = {}
+    )
 }
 
 private val Ink: Color get() = if (AppTheme.dark) Color(0xFFECE9E4) else Color(0xFF1C2824)
@@ -185,15 +297,17 @@ private enum class LifeOsModule(val label: String, val icon: ImageVector) {
 private fun LifeOsApp(repository: LifeOsRepository, authRepository: AuthRepository, requestedModule: String?, onModuleHandled: () -> Unit) {
     var signedIn by remember { mutableStateOf(authRepository.isSignedIn) }
     val context = LocalContext.current
+    val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    var themeChosen by remember { mutableStateOf(readThemeMode(context) != null) }
+    var variantTick by remember { mutableStateOf(0) }
     DisposableEffect(authRepository) {
         val listener = authRepository.addAuthStateListener { isSignedIn ->
             signedIn = isSignedIn
-            AppTheme.dark = isSignedIn && authRepository.currentUserId?.let { ProfileStore(context).readDarkMode(it) } == true
-            AppTheme.amoled = isSignedIn && authRepository.currentUserId?.let { ProfileStore(context).readAmoled(it) } == true
-                        rememberSplashTheme(context, AppTheme.dark, AppTheme.amoled)
+            syncTheme(context, isSignedIn, isSystemDark(context))
         }
         onDispose { authRepository.removeAuthStateListener(listener) }
     }
+    androidx.compose.runtime.LaunchedEffect(signedIn, systemDark, themeChosen, variantTick) { syncTheme(context, signedIn, systemDark) }
     val view = androidx.compose.ui.platform.LocalView.current
     androidx.compose.runtime.SideEffect {
         val window = (view.context as? Activity)?.window ?: return@SideEffect
@@ -204,6 +318,16 @@ private fun LifeOsApp(repository: LifeOsRepository, authRepository: AuthReposito
     if (!signedIn) {
         AuthScreen(authRepository)
         return
+    }
+
+    // Shown once after sign-in; the dark variant question only applies when following a dark system.
+    if (!themeChosen) {
+        FirstLaunchThemeDialog { mode ->
+            applyThemeMode(context, mode, signedIn)
+            themeChosen = true
+        }
+    } else if (variantTick >= 0 && needsSystemDarkVariant(context)) {
+        DarkVariantDialog(onPick = { amoled -> applySystemDarkVariant(context, amoled); variantTick++ })
     }
 
     var selectedModule by remember { mutableStateOf(LifeOsModule.Dashboard) }
@@ -538,8 +662,8 @@ private fun DashboardScreen(snapshot: LifeOsSnapshot, context: Context, displayN
         LazyColumn(Modifier.fillMaxSize().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item {
                 Spacer(Modifier.height(16.dp))
-                Text("Good morning${if (displayName.isBlank()) "" else ", $displayName"}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Ink)
-                Text("A clear day starts with a clear view", color = Muted)
+                Text("${greetingForNow()}${if (displayName.isBlank()) "" else ", $displayName"}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Ink)
+                Text(greetingMessageForNow(), color = Muted)
             }
             item {
                 Card(
@@ -952,10 +1076,8 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
     androidx.activity.compose.BackHandler(enabled = showTheme) { showTheme = false }
     if (showTheme) {
         ThemeScreen(onBack = { showTheme = false }) { enabled, amoled ->
-            AppTheme.dark = enabled
-            AppTheme.amoled = amoled
-            rememberSplashTheme(context ?: return@ThemeScreen, enabled, amoled)
-            userId?.let { profileStore?.saveDarkMode(it, enabled); profileStore?.saveAmoled(it, amoled) }
+            val mode = if (!enabled) ThemeLight else if (amoled) ThemeAmoled else ThemeLcd
+            applyThemeMode(context ?: return@ThemeScreen, mode, true)
         }
         return
     }
