@@ -422,6 +422,7 @@ private fun AuthScreen(authRepository: AuthRepository) {
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var showTermsDialog by remember { mutableStateOf(false) }
+    var showWhy by remember { mutableStateOf(false) }
     var acceptedTerms by remember { mutableStateOf(false) }
 
     var identifier by remember { mutableStateOf("") }
@@ -543,6 +544,13 @@ private fun AuthScreen(authRepository: AuthRepository) {
                         showSignUp = !showSignUp
                         message = null
                     }
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedButton(
+                        onClick = { showWhy = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(50.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, OrangePale)
+                    ) { Text("Why LifeOS?", color = OrangeDeep, fontWeight = FontWeight.SemiBold) }
 
                     if (message != null) {
                         Spacer(Modifier.height(14.dp))
@@ -550,6 +558,10 @@ private fun AuthScreen(authRepository: AuthRepository) {
                     }
                 }
             }
+        }
+        if (showWhy) {
+            androidx.activity.compose.BackHandler { showWhy = false }
+            WhyLifeOsScreen { showWhy = false }
         }
     }
 
@@ -590,6 +602,55 @@ private fun AuthScreen(authRepository: AuthRepository) {
                 TextButton(onClick = { showTermsDialog = false }, enabled = !busy) { Text("Cancel", color = OrangeDeep) }
             }
         )
+    }
+}
+
+@Composable
+private fun WhyLifeOsScreen(onClose: () -> Unit) {
+    val features = listOf(
+        Triple("Tasks", "Capture to-dos with due dates and tick them off as you go.", "Never lose track of what needs doing."),
+        Triple("Calendar & Events", "Plan your days and keep every event in one place.", "See your schedule at a glance."),
+        Triple("Reminders", "Set reminders for the things that matter.", "Get nudged at the right moment."),
+        Triple("Notes", "Write down ideas, lists and thoughts instantly.", "Everything you need to remember, saved."),
+        Triple("Expenses & Budget", "Log spending and keep an eye on your budget.", "Understand where your money goes."),
+        Triple("Capital", "Track your savings and overall financial position.", "Watch your progress grow."),
+        Triple("Smart notifications", "Alerts for tasks, events, reminders and budget - tap to jump straight to the right tab.", "Stay on top without opening the app."),
+        Triple("Cloud backup", "Sign in and your data is saved and restored across sessions.", "Your life, safe and synced.")
+    )
+    Column(
+        Modifier.fillMaxSize().background(AuthWash).verticalScroll(rememberScrollState()).padding(20.dp)
+    ) {
+        Spacer(Modifier.height(24.dp))
+        Text("Why LifeOS?", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Ink)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "One calm place to organise your tasks, time, notes and money - so you can focus on living.",
+            color = Muted
+        )
+        Spacer(Modifier.height(18.dp))
+        features.forEach { (title, what, benefit) ->
+            Card(
+                Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                colors = CardDefaults.cardColors(containerColor = Paper),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    Text(title, fontWeight = FontWeight.SemiBold, color = Ink)
+                    Spacer(Modifier.height(4.dp))
+                    Text(what, color = Muted, style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.height(4.dp))
+                    Text(benefit, color = OrangeDeep, fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Button(
+            onClick = onClose,
+            modifier = Modifier.fillMaxWidth().height(54.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)
+        ) { Text("Get started", color = Color.White, fontWeight = FontWeight.SemiBold) }
+        Spacer(Modifier.height(24.dp))
     }
 }
 
@@ -1095,8 +1156,20 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
     var showGoalEdit by remember { mutableStateOf(false) }
     var showNotifications by remember { mutableStateOf(false) }
     var showTerms by remember { mutableStateOf(false) }
+    var showAbout by remember { mutableStateOf(false) }
+    var showContact by remember { mutableStateOf(false) }
     var showTheme by remember { mutableStateOf(false) }
     androidx.activity.compose.BackHandler(enabled = showTheme) { showTheme = false }
+    androidx.activity.compose.BackHandler(enabled = showContact) { showContact = false }
+    if (showContact) {
+        ContactScreen()
+        return
+    }
+    androidx.activity.compose.BackHandler(enabled = showAbout) { showAbout = false }
+    if (showAbout) {
+        AboutScreen()
+        return
+    }
     if (showTheme) {
         ThemeScreen(onBack = { showTheme = false }) { enabled, amoled ->
             val mode = if (!enabled) ThemeLight else if (amoled) ThemeAmoled else ThemeLcd
@@ -1189,8 +1262,10 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
                 }
             )
         }
+        ProfileOption("Contact Us", "Get in touch with the developer", "@") { showContact = true }
+        ProfileOption("About", "Meet the developer", "i") { showAbout = true }
         Spacer(Modifier.height(10.dp))
-        OutlinedButton(onClick = { authRepository?.signOut() }, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), border = androidx.compose.foundation.BorderStroke(1.dp, OrangePale)) { Text("Sign out", color = OrangeDeep, fontWeight = FontWeight.SemiBold) }
+        OutlinedButton(onClick = { authRepository?.signOut() }, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), border = androidx.compose.foundation.BorderStroke(1.5.dp, OrangeDeep)) { Text("Sign out", color = OrangeDeep, fontWeight = FontWeight.SemiBold) }
         Spacer(Modifier.height(12.dp))
         val currentContext = LocalContext.current
         val appVersion = remember {
@@ -1271,6 +1346,122 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun ContactScreen() {
+    val context = LocalContext.current
+    val email = "rafiulrafi55@gmail.com"
+    var notice by remember { mutableStateOf<String?>(null) }
+    Column(Modifier.fillMaxSize().background(Wash).verticalScroll(rememberScrollState()).padding(20.dp)) {
+        Spacer(Modifier.height(24.dp))
+        Text("Contact Us", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Ink)
+        Spacer(Modifier.height(6.dp))
+        Text("Questions, feedback or a bug to report? I'd love to hear from you", color = Muted)
+        Spacer(Modifier.height(18.dp))
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Paper), shape = RoundedCornerShape(18.dp)) {
+            Column(Modifier.padding(18.dp)) {
+                Text("Email", fontWeight = FontWeight.SemiBold, color = Ink)
+                Spacer(Modifier.height(4.dp))
+                Text(email, color = OrangeDeep, fontWeight = FontWeight.Medium)
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        androidx.compose.material3.Button(
+            onClick = {
+                val intent = android.content.Intent(android.content.Intent.ACTION_SENDTO).apply {
+                    data = android.net.Uri.parse("mailto:")
+                    putExtra(android.content.Intent.EXTRA_EMAIL, arrayOf(email))
+                    putExtra(android.content.Intent.EXTRA_SUBJECT, "LifeOS feedback")
+                }
+                try {
+                    context.startActivity(intent)
+                } catch (e: Exception) {
+                    notice = "No email app found. Copy the address instead."
+                }
+            },
+            modifier = Modifier.fillMaxWidth().height(54.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)
+        ) { Text("Send an email", color = Color.White, fontWeight = FontWeight.SemiBold) }
+        Spacer(Modifier.height(10.dp))
+        OutlinedButton(
+            onClick = {
+                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Email", email))
+                notice = "Email address copied."
+            },
+            modifier = Modifier.fillMaxWidth().height(54.dp),
+            shape = RoundedCornerShape(16.dp),
+            border = androidx.compose.foundation.BorderStroke(1.5.dp, OrangeDeep)
+        ) { Text("Copy email address", color = OrangeDeep, fontWeight = FontWeight.SemiBold) }
+        notice?.let {
+            Spacer(Modifier.height(12.dp))
+            Text(it, color = Muted, style = MaterialTheme.typography.bodyMedium)
+        }
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun AboutScreen() {
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+    val links = listOf(
+        Triple("GitHub", "github.com/rafiulrafi55", "https://github.com/rafiulrafi55/"),
+        Triple("LinkedIn", "linkedin.com/in/rafiularvi", "https://www.linkedin.com/in/rafiularvi/"),
+        Triple("Facebook", "facebook.com/rafiulrafi556", "https://facebook.com/rafiulrafi556"),
+        Triple("Instagram", "instagram.com/myself_arvi", "https://instagram.com/myself_arvi")
+    )
+    Column(Modifier.fillMaxSize().background(Wash).verticalScroll(rememberScrollState()).padding(20.dp)) {
+        Spacer(Modifier.height(24.dp))
+        Card(
+            modifier = Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(OrangeDeep, Orange)), RoundedCornerShape(26.dp)),
+            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+            shape = RoundedCornerShape(26.dp)
+        ) {
+            Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(Modifier.size(88.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.22f)), contentAlignment = Alignment.Center) {
+                    Text("R", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.height(14.dp))
+                Text("Rafiul Islam", color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text("Junior App Developer And The Creator Of LifeOS", color = OrangeLight)
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Paper), shape = RoundedCornerShape(18.dp)) {
+            Column(Modifier.padding(18.dp)) {
+                Text("Bio", fontWeight = FontWeight.SemiBold, color = Ink)
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Hi \uD83D\uDC4B, I'm Rafiul. I am a student in Computer Science and Information Technology and currently learning programming.",
+                    color = Muted
+                )
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Text("Connect", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Ink)
+        Spacer(Modifier.height(8.dp))
+        links.forEach { (name, label, url) ->
+            Card(
+                Modifier.fillMaxWidth().padding(bottom = 10.dp).clickable { runCatching { uriHandler.openUri(url) } },
+                colors = CardDefaults.cardColors(containerColor = Paper),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(40.dp).clip(CircleShape).background(OrangePale), contentAlignment = Alignment.Center) {
+                        Text(name.first().toString(), color = OrangeDeep, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column {
+                        Text(name, fontWeight = FontWeight.SemiBold, color = Ink)
+                        Text(label, color = Muted, style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(24.dp))
     }
 }
 
