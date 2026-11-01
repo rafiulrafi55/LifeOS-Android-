@@ -95,12 +95,13 @@ import androidx.compose.material.icons.filled.Person
 
 private object AppTheme {
     var dark by mutableStateOf(false)
+    var amoled by mutableStateOf(false)
 }
 
 private val Ink: Color get() = if (AppTheme.dark) Color(0xFFECE9E4) else Color(0xFF1C2824)
 private val Moss = Color(0xFF2E6B58)
 private val Coral = Color(0xFFE67B62)
-private val Sand: Color get() = if (AppTheme.dark) Color(0xFF121615) else Color(0xFFF8F6F0)
+private val Sand: Color get() = if (AppTheme.dark) (if (AppTheme.amoled) Color.Black else Color(0xFF121615)) else Color(0xFFF8F6F0)
 private val Paper: Color get() = if (AppTheme.dark) Color(0xFF1E2423) else Color.White
 private val Muted: Color get() = if (AppTheme.dark) Color(0xFF9AA6A0) else Color(0xFF63706A)
 private val Teal = Color(0xFF4B9D99)
@@ -108,7 +109,11 @@ private val Orange = Color(0xFFF28A4B)
 private val OrangeDeep = Color(0xFFE75B35)
 private val OrangePale: Color get() = if (AppTheme.dark) Color(0xFF3B2A20) else Color(0xFFFFE8D8)
 private val OrangeLight = Color(0xFFFFE8D8)
-private val Wash: Brush get() = if (AppTheme.dark) Brush.linearGradient(listOf(Color(0xFF1B1613), Color(0xFF171A19), Sand)) else Brush.linearGradient(listOf(Color(0xFFFFF5EC), Color(0xFFFFE5D2), Sand))
+private val Wash: Brush get() = when {
+    AppTheme.dark && AppTheme.amoled -> Brush.linearGradient(listOf(Color.Black, Color.Black))
+    AppTheme.dark -> Brush.linearGradient(listOf(Color(0xFF1B1613), Color(0xFF171A19), Sand))
+    else -> Brush.linearGradient(listOf(Color(0xFFFFF5EC), Color(0xFFFFE5D2), Sand))
+}
 private val Divider: Color get() = if (AppTheme.dark) Color(0xFF2E3634) else Color(0xFFE3E8E3)
 private val Outline: Color get() = if (AppTheme.dark) Color(0xFF343D3A) else Color(0xFFE6DED7)
 private const val GoogleWebClientId = "294255605490-dn0l52gqv0n28um5pgukvuqnanrnd4s2.apps.googleusercontent.com"
@@ -165,6 +170,7 @@ private fun LifeOsApp(repository: LifeOsRepository, authRepository: AuthReposito
         val listener = authRepository.addAuthStateListener { isSignedIn ->
             signedIn = isSignedIn
             AppTheme.dark = isSignedIn && authRepository.currentUserId?.let { ProfileStore(context).readDarkMode(it) } == true
+            AppTheme.amoled = isSignedIn && authRepository.currentUserId?.let { ProfileStore(context).readAmoled(it) } == true
         }
         onDispose { authRepository.removeAuthStateListener(listener) }
     }
@@ -925,9 +931,10 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
     var showTheme by remember { mutableStateOf(false) }
     androidx.activity.compose.BackHandler(enabled = showTheme) { showTheme = false }
     if (showTheme) {
-        ThemeScreen(onBack = { showTheme = false }) { enabled ->
+        ThemeScreen(onBack = { showTheme = false }) { enabled, amoled ->
             AppTheme.dark = enabled
-            userId?.let { profileStore?.saveDarkMode(it, enabled) }
+            AppTheme.amoled = amoled
+            userId?.let { profileStore?.saveDarkMode(it, enabled); profileStore?.saveAmoled(it, amoled) }
         }
         return
     }
@@ -1102,22 +1109,50 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
 }
 
 @Composable
-private fun ThemeScreen(onBack: () -> Unit, onDarkModeChange: (Boolean) -> Unit) {
+private fun ThemeScreen(onBack: () -> Unit, onThemeChange: (dark: Boolean, amoled: Boolean) -> Unit) {
+    var showModeDialog by remember { mutableStateOf(false) }
     ModuleColumn("Theme", "Choose how LifeOS looks") {
-        TextButton(onClick = onBack) { Text("< Back", color = OrangeDeep, fontWeight = FontWeight.SemiBold) }
         Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Paper), shape = RoundedCornerShape(18.dp)) {
             Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Dark mode", fontWeight = FontWeight.SemiBold, color = Ink)
-                    Text("Use a darker palette across the app", color = Muted, style = MaterialTheme.typography.labelMedium)
+                    Text(
+                        if (AppTheme.dark) (if (AppTheme.amoled) "AMOLED" else "LCD") else "Use a darker palette across the app",
+                        color = Muted, style = MaterialTheme.typography.labelMedium
+                    )
                 }
                 androidx.compose.material3.Switch(
                     checked = AppTheme.dark,
-                    onCheckedChange = onDarkModeChange,
+                    onCheckedChange = { enabled -> if (enabled) showModeDialog = true else onThemeChange(false, false) },
                     colors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = OrangeDeep, checkedThumbColor = Color.White)
                 )
             }
         }
+    }
+    if (showModeDialog) {
+        AlertDialog(
+            onDismissRequest = { showModeDialog = false },
+            title = { Text("Choose dark mode type", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text("LCD keeps the soft dark grey look. AMOLED uses a pitch black background to save battery on OLED screens.", color = Muted)
+                    Spacer(Modifier.height(14.dp))
+                    Button(
+                        onClick = { onThemeChange(true, false); showModeDialog = false },
+                        modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp),
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)
+                    ) { Text("LCD") }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = { onThemeChange(true, true); showModeDialog = false },
+                        modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, OrangeDeep)
+                    ) { Text("AMOLED", color = OrangeDeep) }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { showModeDialog = false }) { Text("Cancel", color = OrangeDeep) } }
+        )
     }
 }
 

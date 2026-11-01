@@ -52,6 +52,12 @@ class ProfileStore(context: Context) {
         preferences.edit().putBoolean("${userId}_darkMode", enabled).apply()
     }
 
+    fun readAmoled(userId: String): Boolean = preferences.getBoolean("${userId}_amoled", false)
+
+    fun saveAmoled(userId: String, enabled: Boolean) {
+        preferences.edit().putBoolean("${userId}_amoled", enabled).apply()
+    }
+
     fun recordActiveDay(userId: String): Int {
         val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
         val lastActiveDay = preferences.getString("${userId}_lastActiveDay", null)
