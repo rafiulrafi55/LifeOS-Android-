@@ -93,14 +93,24 @@ import androidx.compose.material.icons.filled.Note
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 
-private val Ink = Color(0xFF1C2824)
+private object AppTheme {
+    var dark by mutableStateOf(false)
+}
+
+private val Ink: Color get() = if (AppTheme.dark) Color(0xFFECE9E4) else Color(0xFF1C2824)
 private val Moss = Color(0xFF2E6B58)
 private val Coral = Color(0xFFE67B62)
-private val Sand = Color(0xFFF8F6F0)
+private val Sand: Color get() = if (AppTheme.dark) Color(0xFF121615) else Color(0xFFF8F6F0)
+private val Paper: Color get() = if (AppTheme.dark) Color(0xFF1E2423) else Color.White
+private val Muted: Color get() = if (AppTheme.dark) Color(0xFF9AA6A0) else Color(0xFF63706A)
 private val Teal = Color(0xFF4B9D99)
 private val Orange = Color(0xFFF28A4B)
 private val OrangeDeep = Color(0xFFE75B35)
-private val OrangePale = Color(0xFFFFE8D8)
+private val OrangePale: Color get() = if (AppTheme.dark) Color(0xFF3B2A20) else Color(0xFFFFE8D8)
+private val OrangeLight = Color(0xFFFFE8D8)
+private val Wash: Brush get() = if (AppTheme.dark) Brush.linearGradient(listOf(Color(0xFF1B1613), Color(0xFF171A19), Sand)) else Brush.linearGradient(listOf(Color(0xFFFFF5EC), Color(0xFFFFE5D2), Sand))
+private val Divider: Color get() = if (AppTheme.dark) Color(0xFF2E3634) else Color(0xFFE3E8E3)
+private val Outline: Color get() = if (AppTheme.dark) Color(0xFF343D3A) else Color(0xFFE6DED7)
 private const val GoogleWebClientId = "294255605490-dn0l52gqv0n28um5pgukvuqnanrnd4s2.apps.googleusercontent.com"
 
 class MainActivity : ComponentActivity() {
@@ -150,9 +160,19 @@ private enum class LifeOsModule(val label: String, val icon: ImageVector) {
 @OptIn(ExperimentalMaterial3Api::class)
 private fun LifeOsApp(repository: LifeOsRepository, authRepository: AuthRepository, requestedModule: String?, onModuleHandled: () -> Unit) {
     var signedIn by remember { mutableStateOf(authRepository.isSignedIn) }
+    val context = LocalContext.current
     DisposableEffect(authRepository) {
-        val listener = authRepository.addAuthStateListener { signedIn = it }
+        val listener = authRepository.addAuthStateListener { isSignedIn ->
+            signedIn = isSignedIn
+            AppTheme.dark = isSignedIn && authRepository.currentUserId?.let { ProfileStore(context).readDarkMode(it) } == true
+        }
         onDispose { authRepository.removeAuthStateListener(listener) }
+    }
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.runtime.SideEffect {
+        val window = (view.context as? Activity)?.window ?: return@SideEffect
+        androidx.core.view.WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !AppTheme.dark
+        androidx.core.view.WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !AppTheme.dark
     }
 
     if (!signedIn) {
@@ -168,20 +188,23 @@ private fun LifeOsApp(repository: LifeOsRepository, authRepository: AuthReposito
     val snapshot by repository.observeSnapshot().collectAsState(
         initial = LifeOsSnapshot(emptyList(), emptyList(), emptyList(), emptyList(), emptyList())
     )
-    val context = LocalContext.current
     val profile = authRepository.currentUserId?.let { ProfileStore(context).read(it) } ?: LifeOsProfile()
 
     MaterialTheme(
-        colorScheme = androidx.compose.material3.lightColorScheme(
+        colorScheme = if (AppTheme.dark) androidx.compose.material3.darkColorScheme(
+            primary = Color(0xFF5FB59A), onPrimary = Color(0xFF0B1511), background = Sand,
+            surface = Paper, onSurface = Ink, onBackground = Ink, secondary = Coral,
+            surfaceVariant = Paper, onSurfaceVariant = Muted, outline = Outline
+        ) else androidx.compose.material3.lightColorScheme(
             primary = Moss, onPrimary = Color.White, background = Sand,
-            surface = Color.White, onSurface = Ink, secondary = Coral
+            surface = Paper, onSurface = Ink, secondary = Coral
         )
     ) {
         Scaffold(
             containerColor = Sand,
             bottomBar = {
                 androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalRippleConfiguration provides null) {
-                NavigationBar(modifier = Modifier.padding(horizontal = 8.dp), containerColor = Color.White, tonalElevation = 0.dp) {
+                NavigationBar(modifier = Modifier.padding(horizontal = 8.dp), containerColor = Paper, tonalElevation = 0.dp) {
                     LifeOsModule.entries.forEach { module ->
                         NavigationBarItem(
                             selected = selectedModule == module,
@@ -194,7 +217,7 @@ private fun LifeOsApp(repository: LifeOsRepository, authRepository: AuthReposito
                                         .clip(CircleShape)
                                         .background(if (selectedModule == module) OrangePale else Color.Transparent),
                                     contentAlignment = Alignment.Center
-                                ) { Icon(module.icon, contentDescription = module.label, tint = if (selectedModule == module) OrangeDeep else Color(0xFF63706A), modifier = Modifier.size(19.dp)) }
+                                ) { Icon(module.icon, contentDescription = module.label, tint = if (selectedModule == module) OrangeDeep else Muted, modifier = Modifier.size(19.dp)) }
                             },
                             alwaysShowLabel = false,
                             colors = androidx.compose.material3.NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent)
@@ -485,17 +508,17 @@ private fun DashboardScreen(snapshot: LifeOsSnapshot, context: Context, displayN
             .sortedByDescending { it.timestamp }
     }
 
-    Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFFFFF5EC), Color(0xFFFFE5D2), Sand)))) {
+    Box(Modifier.fillMaxSize().background(Wash)) {
         LazyColumn(Modifier.fillMaxSize().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item {
                 Spacer(Modifier.height(16.dp))
                 Text("Good morning${if (displayName.isBlank()) "" else ", $displayName"}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Ink)
-                Text("A clear day starts with a clear view", color = Color(0xFF63706A))
+                Text("A clear day starts with a clear view", color = Muted)
             }
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = Paper),
                     shape = RoundedCornerShape(24.dp)
                 ) {
                     Column(Modifier.padding(16.dp)) {
@@ -508,7 +531,7 @@ private fun DashboardScreen(snapshot: LifeOsSnapshot, context: Context, displayN
                                 shape = RoundedCornerShape(16.dp)
                             ) {
                                 Column(Modifier.padding(16.dp)) {
-                                    Text("EXPENSE", color = OrangePale, style = MaterialTheme.typography.labelMedium)
+                                    Text("EXPENSE", color = OrangeLight, style = MaterialTheme.typography.labelMedium)
                                     Spacer(Modifier.height(4.dp))
                                     Text(formatLifeOsAmount(totalExpenses.toString(), currency), color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                 }
@@ -530,30 +553,30 @@ private fun DashboardScreen(snapshot: LifeOsSnapshot, context: Context, displayN
             }
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Card(modifier = Modifier.weight(1f).clickable { onModuleSelected(LifeOsModule.Tasks) }, colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
+                    Card(modifier = Modifier.weight(1f).clickable { onModuleSelected(LifeOsModule.Tasks) }, colors = CardDefaults.cardColors(containerColor = Paper), shape = RoundedCornerShape(16.dp)) {
                         Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Tasks", color = Color(0xFF63706A), style = MaterialTheme.typography.labelSmall)
+                            Text("Tasks", color = Muted, style = MaterialTheme.typography.labelSmall)
                             Spacer(Modifier.height(4.dp))
                             Text("${snapshot.tasks.size}", fontWeight = FontWeight.Bold, color = Ink, style = MaterialTheme.typography.titleMedium)
                         }
                     }
-                    Card(modifier = Modifier.weight(1f).clickable { onModuleSelected(LifeOsModule.Calendar) }, colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
+                    Card(modifier = Modifier.weight(1f).clickable { onModuleSelected(LifeOsModule.Calendar) }, colors = CardDefaults.cardColors(containerColor = Paper), shape = RoundedCornerShape(16.dp)) {
                         Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Events", color = Color(0xFF63706A), style = MaterialTheme.typography.labelSmall)
+                            Text("Events", color = Muted, style = MaterialTheme.typography.labelSmall)
                             Spacer(Modifier.height(4.dp))
                             Text("${snapshot.events.size}", fontWeight = FontWeight.Bold, color = Ink, style = MaterialTheme.typography.titleMedium)
                         }
                     }
-                    Card(modifier = Modifier.weight(1f).clickable { onModuleSelected(LifeOsModule.Notes) }, colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
+                    Card(modifier = Modifier.weight(1f).clickable { onModuleSelected(LifeOsModule.Notes) }, colors = CardDefaults.cardColors(containerColor = Paper), shape = RoundedCornerShape(16.dp)) {
                         Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Notes", color = Color(0xFF63706A), style = MaterialTheme.typography.labelSmall)
+                            Text("Notes", color = Muted, style = MaterialTheme.typography.labelSmall)
                             Spacer(Modifier.height(4.dp))
                             Text("${snapshot.notes.size}", fontWeight = FontWeight.Bold, color = Ink, style = MaterialTheme.typography.titleMedium)
                         }
                     }
-                    Card(modifier = Modifier.weight(1f).clickable { onModuleSelected(LifeOsModule.Reminders) }, colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
+                    Card(modifier = Modifier.weight(1f).clickable { onModuleSelected(LifeOsModule.Reminders) }, colors = CardDefaults.cardColors(containerColor = Paper), shape = RoundedCornerShape(16.dp)) {
                         Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Reminders", color = Color(0xFF63706A), style = MaterialTheme.typography.labelSmall)
+                            Text("Reminders", color = Muted, style = MaterialTheme.typography.labelSmall)
                             Spacer(Modifier.height(4.dp))
                             Text("${snapshot.reminders.size}", fontWeight = FontWeight.Bold, color = Ink, style = MaterialTheme.typography.titleMedium)
                         }
@@ -565,20 +588,20 @@ private fun DashboardScreen(snapshot: LifeOsSnapshot, context: Context, displayN
             }
             if (allActivity.isNotEmpty()) {
                 item {
-                    Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
+                    Card(colors = CardDefaults.cardColors(containerColor = Paper), shape = RoundedCornerShape(20.dp)) {
                         Column(Modifier.padding(horizontal = 18.dp, vertical = 12.dp)) {
                             allActivity.take(5).forEach { item ->
                                 val isExpense = item.amount < 0
                                 val displayAmount = Math.abs(item.amount)
                                 Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Column { Text(item.title, fontWeight = FontWeight.SemiBold); Text(item.category, color = Color(0xFF63706A), style = MaterialTheme.typography.labelMedium) }
+                                    Column { Text(item.title, fontWeight = FontWeight.SemiBold); Text(item.category, color = Muted, style = MaterialTheme.typography.labelMedium) }
                                     Text(
                                         (if (isExpense) "-" else "+") + formatLifeOsAmount(displayAmount.toString(), currency),
                                         fontWeight = FontWeight.Bold,
                                         color = if (isExpense) Coral else Moss
                                     )
                                 }
-                                HorizontalDivider(color = Color(0xFFE3E8E3))
+                                HorizontalDivider(color = Divider)
                             }
                         }
                     }
@@ -596,7 +619,7 @@ private fun TasksScreen(tasks: List<LifeOsTask>, repository: LifeOsRepository, c
         Button(onClick = { showAddTask = true }, Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)) { Text("+  Add a task") }
         Spacer(Modifier.height(16.dp))
         if (tasks.isNotEmpty()) {
-            Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
+            Card(colors = CardDefaults.cardColors(containerColor = Paper), shape = RoundedCornerShape(20.dp)) {
                 Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) { tasks.forEach { task -> TaskRow(task) { repository.toggleTask(task.id) } } }
             }
         }
@@ -618,7 +641,7 @@ private fun TasksScreen(tasks: List<LifeOsTask>, repository: LifeOsRepository, c
 private fun CalendarScreen(events: List<LifeOsEvent>, repository: LifeOsRepository, context: Context) {
     var showAddEvent by remember { mutableStateOf(false) }
     ModuleColumn("Your calendar", currentDateLabel()) {
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
+        Card(colors = CardDefaults.cardColors(containerColor = Paper), shape = RoundedCornerShape(20.dp)) {
             Row(Modifier.fillMaxWidth().padding(18.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 currentDateStrip().forEachIndexed { index, day ->
                     Box(Modifier.size(48.dp).clip(CircleShape).background(if (index == 2) OrangeDeep else Color.Transparent), contentAlignment = Alignment.Center) {
@@ -631,7 +654,7 @@ private fun CalendarScreen(events: List<LifeOsEvent>, repository: LifeOsReposito
         Button(onClick = { showAddEvent = true }, Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)) { Text("+  Add an event") }
         Spacer(Modifier.height(16.dp))
         if (events.isNotEmpty()) {
-            Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
+            Card(colors = CardDefaults.cardColors(containerColor = Paper), shape = RoundedCornerShape(20.dp)) {
                 Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) { events.forEach { EventRow(it) } }
             }
         }
@@ -666,8 +689,8 @@ private fun NotesScreen(notes: List<LifeOsNote>, repository: LifeOsRepository) {
         Button(onClick = { editingNote = true }, Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)) { Text("+  New note") }
         Spacer(Modifier.height(16.dp))
         notes.forEach { note ->
-            Card(Modifier.fillMaxWidth().padding(bottom = 12.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-                Column(Modifier.padding(18.dp)) { Text(note.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold); Spacer(Modifier.height(7.dp)); Text(note.preview, color = Color(0xFF63706A)); Spacer(Modifier.height(12.dp)); Text(note.updatedLabel, style = MaterialTheme.typography.labelMedium, color = Moss) }
+            Card(Modifier.fillMaxWidth().padding(bottom = 12.dp), colors = CardDefaults.cardColors(containerColor = Paper)) {
+                Column(Modifier.padding(18.dp)) { Text(note.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold); Spacer(Modifier.height(7.dp)); Text(note.preview, color = Muted); Spacer(Modifier.height(12.dp)); Text(note.updatedLabel, style = MaterialTheme.typography.labelMedium, color = Moss) }
             }
         }
     }
@@ -687,14 +710,14 @@ private fun NoteEditorScreen(onBack: () -> Unit, onSave: (String, String) -> Uni
             Spacer(Modifier.height(16.dp))
             OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             Spacer(Modifier.height(14.dp))
-            Card(Modifier.fillMaxSize(), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(22.dp)) {
+            Card(Modifier.fillMaxSize(), colors = CardDefaults.cardColors(containerColor = Paper), shape = RoundedCornerShape(22.dp)) {
                 BasicTextField(
                     value = body,
                     onValueChange = { body = it },
                     modifier = Modifier.fillMaxSize().padding(20.dp),
                     textStyle = MaterialTheme.typography.bodyLarge.copy(color = Ink, lineHeight = 26.sp),
                     decorationBox = { innerTextField ->
-                        if (body.isBlank()) Text("Start writing...", color = Color(0xFF9A928C), style = MaterialTheme.typography.bodyLarge)
+                        if (body.isBlank()) Text("Start writing...", color = Muted, style = MaterialTheme.typography.bodyLarge)
                         innerTextField()
                     }
                 )
@@ -737,7 +760,7 @@ private fun ExpensesScreen(snapshot: LifeOsSnapshot, repository: LifeOsRepositor
     ModuleColumn("Money", "A calmer view of your spending") {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Card(modifier = Modifier.weight(1f).background(Brush.linearGradient(listOf(OrangeDeep, Orange)), RoundedCornerShape(20.dp)), colors = CardDefaults.cardColors(containerColor = Color.Transparent), shape = RoundedCornerShape(20.dp)) {
-                Column(Modifier.fillMaxWidth().padding(20.dp)) { Text("TOTAL EXPENSE", color = OrangePale, style = MaterialTheme.typography.labelMedium, letterSpacing = 1.sp); Spacer(Modifier.height(7.dp)); Text(formatLifeOsAmount(totalExpenses.toString(), currency), color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
+                Column(Modifier.fillMaxWidth().padding(20.dp)) { Text("TOTAL EXPENSE", color = OrangeLight, style = MaterialTheme.typography.labelMedium, letterSpacing = 1.sp); Spacer(Modifier.height(7.dp)); Text(formatLifeOsAmount(totalExpenses.toString(), currency), color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
             }
             Card(modifier = Modifier.weight(1f).background(Brush.linearGradient(listOf(Moss, Teal)), RoundedCornerShape(20.dp)), colors = CardDefaults.cardColors(containerColor = Color.Transparent), shape = RoundedCornerShape(20.dp)) {
                 Column(Modifier.fillMaxWidth().padding(20.dp)) { Text("REMAINING BUDGET", color = Color(0xFFE0F2F1), style = MaterialTheme.typography.labelMedium, letterSpacing = 1.sp); Spacer(Modifier.height(7.dp)); Text(remainingText, color = remainingColor, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
@@ -755,7 +778,7 @@ private fun ExpensesScreen(snapshot: LifeOsSnapshot, repository: LifeOsRepositor
         Spacer(Modifier.height(16.dp))
 
         if (allActivity.isNotEmpty()) {
-            Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
+            Card(colors = CardDefaults.cardColors(containerColor = Paper), shape = RoundedCornerShape(20.dp)) {
                 Column(Modifier.padding(horizontal = 18.dp, vertical = 12.dp)) {
                     Text("Recent activity", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     allActivity.forEach { item ->
@@ -765,7 +788,7 @@ private fun ExpensesScreen(snapshot: LifeOsSnapshot, repository: LifeOsRepositor
                             if (isExpense) editingExpense = snapshot.expenses.firstOrNull { it.id == item.id }
                             else editingCapital = snapshot.capitals.firstOrNull { it.id == item.id }
                         }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) { Text(item.title, fontWeight = FontWeight.SemiBold); Text(item.category, color = Color(0xFF63706A), style = MaterialTheme.typography.labelMedium) }
+                            Column(Modifier.weight(1f)) { Text(item.title, fontWeight = FontWeight.SemiBold); Text(item.category, color = Muted, style = MaterialTheme.typography.labelMedium) }
                             Text(
                                 (if (isExpense) "-" else "+") + formatLifeOsAmount(displayAmount.toString(), currency),
                                 fontWeight = FontWeight.Bold,
@@ -776,9 +799,9 @@ private fun ExpensesScreen(snapshot: LifeOsSnapshot, repository: LifeOsRepositor
                                     if (isExpense) snap.copy(expenses = snap.expenses.filter { it.id != item.id })
                                     else snap.copy(capitals = snap.capitals.filter { it.id != item.id })
                                 }
-                            }) { Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFF63706A)) }
+                            }) { Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Muted) }
                         }
-                        HorizontalDivider(color = Color(0xFFE3E8E3))
+                                                    HorizontalDivider(color = Divider)
                     }
                 }
             }
@@ -853,18 +876,17 @@ private fun RemindersScreen(reminders: List<LifeOsReminder>, repository: LifeOsR
         Button(onClick = { showAddReminder = true }, Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp), colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = OrangeDeep)) { Text("+  Add a reminder") }
         Spacer(Modifier.height(16.dp))
         reminders.forEach { reminder ->
-            Card(Modifier.fillMaxWidth().padding(bottom = 10.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+            Card(Modifier.fillMaxWidth().padding(bottom = 10.dp), colors = CardDefaults.cardColors(containerColor = Paper)) {
                 Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(12.dp).clip(CircleShape).background(Coral))
                     Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) { Text(reminder.title, fontWeight = FontWeight.SemiBold); Text(reminder.scheduleLabel, color = Color(0xFF63706A), style = MaterialTheme.typography.labelMedium) }
+                    Column(Modifier.weight(1f)) { Text(reminder.title, fontWeight = FontWeight.SemiBold); Text(reminder.scheduleLabel, color = Muted, style = MaterialTheme.typography.labelMedium) }
                     IconButton(onClick = {
                         val reminderScheduler = ReminderScheduler(context)
                         reminderScheduler.cancelReminder(reminder.id)
                         repository.updateSnapshot { it.copy(reminders = it.reminders.filter { r -> r.id != reminder.id }) }
                     }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFF63706A))
-                    }
+                        Icon(Icons.Default.Delete,                         contentDescription = "Delete", tint = Muted)                    }
                 }
             }
         }
@@ -900,6 +922,15 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
     var showGoalEdit by remember { mutableStateOf(false) }
     var showNotifications by remember { mutableStateOf(false) }
     var showTerms by remember { mutableStateOf(false) }
+    var showTheme by remember { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(enabled = showTheme) { showTheme = false }
+    if (showTheme) {
+        ThemeScreen(onBack = { showTheme = false }) { enabled ->
+            AppTheme.dark = enabled
+            userId?.let { profileStore?.saveDarkMode(it, enabled) }
+        }
+        return
+    }
     ModuleColumn("Profile", "Shape LifeOS around your life") {
         Card(
             modifier = Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(OrangeDeep, Orange)), RoundedCornerShape(26.dp)),
@@ -914,7 +945,7 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
                     Spacer(Modifier.width(16.dp))
                     Column {
                         Text("${profile.firstName} ${profile.lastName}".trim().ifBlank { "Your profile" }, color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text(if (profile.username.isBlank()) "Set up your username" else "@${profile.username}", color = OrangePale)
+                        Text(if (profile.username.isBlank()) "Set up your username" else "@${profile.username}", color = OrangeLight)
                         Text(profile.email, color = Color.White.copy(alpha = 0.78f), style = MaterialTheme.typography.labelMedium)
                     }
                 }
@@ -934,6 +965,7 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
         ProfileOption("Personal details", "Name, email and account", "A") { showProfileEdit = true }
         ProfileOption("Goals and preferences", profile.goal.ifBlank { "Add your primary goal" }, "G") { showGoalEdit = true }
         ProfileOption("Notifications", if (profile.notificationsEnabled) "Reminders are enabled" else "Reminders are muted", "N") { showNotifications = true }
+        ProfileOption("Theme", if (AppTheme.dark) "Dark mode is on" else "Dark mode is off", "D") { showTheme = true }
         ProfileOption("Terms and Conditions", "Read our legal agreement", "T") { showTerms = true }
         ProfileOption("Connected services", "Google and other tools", "C") { showConnectedServices = !showConnectedServices }
         if (showConnectedServices) {
@@ -991,14 +1023,14 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
         val appVersion = remember {
             try {
                 val pInfo = currentContext.packageManager.getPackageInfo(currentContext.packageName, 0)
-                pInfo.versionName ?: "0.1.8b"
+                pInfo.versionName ?: "0.2.8b"
             } catch (e: Exception) {
-                "0.1.8b"
+                "0.2.8b"
             }
         }
         Text(
             "Version $appVersion (Beta)",
-            color = Color(0xFF63706A),
+            color = Muted,
             style = MaterialTheme.typography.labelMedium,
             modifier = Modifier.fillMaxWidth(),
             textAlign = TextAlign.Center
@@ -1055,7 +1087,7 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
                         "3. **Account Security**: You are responsible for safeguarding your login credentials and account access.\n\n" +
                         "4. **Modifications**: We reserve the right to modify these terms at any time. Continued use of the app constitutes acceptance of the updated terms.\n\n" +
                         "5. **Disclaimer**: LifeOS is provided 'as is' without warranty of any kind, express or implied.",
-                        color = Color(0xFF63706A),
+                                                color = Muted,
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -1070,10 +1102,30 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
 }
 
 @Composable
+private fun ThemeScreen(onBack: () -> Unit, onDarkModeChange: (Boolean) -> Unit) {
+    ModuleColumn("Theme", "Choose how LifeOS looks") {
+        TextButton(onClick = onBack) { Text("< Back", color = OrangeDeep, fontWeight = FontWeight.SemiBold) }
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Paper), shape = RoundedCornerShape(18.dp)) {
+            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Dark mode", fontWeight = FontWeight.SemiBold, color = Ink)
+                    Text("Use a darker palette across the app", color = Muted, style = MaterialTheme.typography.labelMedium)
+                }
+                androidx.compose.material3.Switch(
+                    checked = AppTheme.dark,
+                    onCheckedChange = onDarkModeChange,
+                    colors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = OrangeDeep, checkedThumbColor = Color.White)
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun ProfileStat(value: String, label: String, modifier: Modifier = Modifier) {
     Card(
         modifier = modifier.height(92.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.96f)),
+        colors = CardDefaults.cardColors(containerColor = Paper),
         shape = RoundedCornerShape(18.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, OrangePale)
     ) {
@@ -1082,18 +1134,18 @@ private fun ProfileStat(value: String, label: String, modifier: Modifier = Modif
             Spacer(Modifier.height(12.dp))
             Text(value, color = OrangeDeep, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(2.dp))
-            Text(label, color = Color(0xFF63706A), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, fontSize = 9.sp)
+            Text(label, color = Muted, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, fontSize = 9.sp)
         }
     }
 }
 
 @Composable
 private fun ProfileOption(title: String, subtitle: String, mark: String, onClick: () -> Unit = {}) {
-    Card(Modifier.fillMaxWidth().padding(bottom = 10.dp).clickable(onClick = onClick), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(18.dp)) {
+    Card(Modifier.fillMaxWidth().padding(bottom = 10.dp).clickable(onClick = onClick), colors = CardDefaults.cardColors(containerColor = Paper), shape = RoundedCornerShape(18.dp)) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(38.dp).clip(CircleShape).background(OrangePale), contentAlignment = Alignment.Center) { Text(mark, color = OrangeDeep, fontWeight = FontWeight.Bold) }
             Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) { Text(title, fontWeight = FontWeight.SemiBold, color = Ink); Text(subtitle, color = Color(0xFF63706A), style = MaterialTheme.typography.labelMedium) }
+            Column(Modifier.weight(1f)) { Text(title, fontWeight = FontWeight.SemiBold, color = Ink); Text(subtitle, color = Muted, style = MaterialTheme.typography.labelMedium) }
             Text(">", color = OrangeDeep, fontWeight = FontWeight.Bold)
         }
     }
@@ -1135,14 +1187,14 @@ private fun GoalEditDialog(currentGoal: String, onDismiss: () -> Unit, onSave: (
 
 @Composable
 private fun FirebaseSyncPanel(syncing: Boolean, restoring: Boolean, message: String?, onSync: () -> Unit, onRestore: () -> Unit) {
-    Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
+    Card(colors = CardDefaults.cardColors(containerColor = Paper), shape = RoundedCornerShape(20.dp)) {
         Column(Modifier.fillMaxWidth().padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(40.dp).clip(CircleShape).background(OrangePale), contentAlignment = Alignment.Center) { Text("F", color = OrangeDeep, fontWeight = FontWeight.Bold, fontSize = 20.sp) }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text("Sync", fontWeight = FontWeight.Bold, color = Ink)
-                    Text("Back up this device's LifeOS data", color = Color(0xFF63706A), style = MaterialTheme.typography.labelMedium)
+                    Text("Back up this device's LifeOS data", color = Muted, style = MaterialTheme.typography.labelMedium)
                 }
             }
             Spacer(Modifier.height(16.dp))
@@ -1210,7 +1262,7 @@ private fun DateTimePickerField(label: String, value: String, onValueChange: (St
     var showTimePicker by remember { mutableStateOf(false) }
     var selectedDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
     OutlinedButton(onClick = { showDatePicker = true }, modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp), shape = RoundedCornerShape(14.dp), border = androidx.compose.foundation.BorderStroke(1.dp, OrangePale)) {
-        Text(if (value.isBlank()) label else value, color = if (value.isBlank()) Color(0xFF63706A) else OrangeDeep)
+        Text(if (value.isBlank()) label else value, color = if (value.isBlank()) Muted else OrangeDeep)
     }
     if (showDatePicker) {
         val state = rememberDatePickerState(initialSelectedDateMillis = System.currentTimeMillis())
@@ -1270,9 +1322,9 @@ private fun LifeOsEntryDialog(title: String, fields: List<String>, onDismiss: ()
 
 @Composable
 private fun ModuleColumn(title: String, subtitle: String, content: @Composable ColumnScope.() -> Unit) {
-    Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFFFFF5EC), Color(0xFFFFE5D2), Sand)))) {
+    Box(Modifier.fillMaxSize().background(Wash)) {
         LazyColumn(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
-            item { Spacer(Modifier.height(8.dp)); Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Ink); Text(subtitle, color = Color(0xFF63706A)); Spacer(Modifier.height(22.dp)); Column(content = content); Spacer(Modifier.height(20.dp)) }
+            item { Spacer(Modifier.height(8.dp)); Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Ink); Text(subtitle, color = Muted); Spacer(Modifier.height(22.dp)); Column(content = content); Spacer(Modifier.height(20.dp)) }
         }
     }
 }
@@ -1284,13 +1336,13 @@ private fun SectionHeader(title: String, action: String, onAction: () -> Unit) {
 
 @Composable
 private fun TaskRow(task: LifeOsTask, onToggle: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) { Checkbox(checked = task.completed, onCheckedChange = { onToggle() }); Column(Modifier.padding(start = 8.dp)) { Text(task.title, fontWeight = FontWeight.SemiBold, textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None); Text(task.dueLabel, style = MaterialTheme.typography.labelMedium, color = Color(0xFF63706A)) } }
+    Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) { Checkbox(checked = task.completed, onCheckedChange = { onToggle() }); Column(Modifier.padding(start = 8.dp)) { Text(task.title, fontWeight = FontWeight.SemiBold, textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None); Text(task.dueLabel, style = MaterialTheme.typography.labelMedium, color = Muted) } }
 }
 
 @Composable
 private fun EventRow(event: LifeOsEvent) {
     val color = if (event.colorKey == "coral") Coral else Teal
-    Row(Modifier.fillMaxWidth().padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(10.dp).clip(CircleShape).background(color)); Spacer(Modifier.width(12.dp)); Column { Text(event.title, fontWeight = FontWeight.SemiBold); Text(event.timeLabel, style = MaterialTheme.typography.labelMedium, color = Color(0xFF63706A)) } }
+    Row(Modifier.fillMaxWidth().padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(10.dp).clip(CircleShape).background(color)); Spacer(Modifier.width(12.dp)); Column { Text(event.title, fontWeight = FontWeight.SemiBold); Text(event.timeLabel, style = MaterialTheme.typography.labelMedium, color = Muted) } }
 }
 
 private val PreviewSnapshot = LifeOsSnapshot(
