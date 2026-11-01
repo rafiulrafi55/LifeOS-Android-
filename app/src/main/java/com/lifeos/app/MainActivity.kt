@@ -688,6 +688,8 @@ private fun NoteEditorScreen(onBack: () -> Unit, onSave: (String, String) -> Uni
     }
 }
 
+private data class ActivityItem(val id: String, val isExpense: Boolean, val title: String, val category: String, val amount: Double)
+
 @Composable
 private fun ExpensesScreen(snapshot: LifeOsSnapshot, repository: LifeOsRepository, context: Context) {
     var currency by remember(context) { mutableStateOf(CurrencyStore(context).read()) }
@@ -695,6 +697,7 @@ private fun ExpensesScreen(snapshot: LifeOsSnapshot, repository: LifeOsRepositor
     var showAddExpense by remember { mutableStateOf(false) }
     var showAddCapital by remember { mutableStateOf(false) }
     var editingExpense by remember { mutableStateOf<LifeOsExpense?>(null) }
+    var editingCapital by remember { mutableStateOf<LifeOsCapital?>(null) }
     var searchQuery by remember { mutableStateOf("") }
 
     val totalExpenses = totalLifeOsExpenses(snapshot.expenses)
@@ -708,10 +711,10 @@ private fun ExpensesScreen(snapshot: LifeOsSnapshot, repository: LifeOsRepositor
     val remainingColor = if (remainingCapital < 0) Coral else Color.White
 
     val allActivity = remember(snapshot.expenses, snapshot.capitals, searchQuery) {
-        (snapshot.expenses.map { Triple(it.merchant, it.category, (it.amount.toDoubleOrNull()?.let { -it } ?: 0.0)) } +
-                         snapshot.capitals.map { Triple(it.source, "Capital", (it.amount.toDoubleOrNull() ?: 0.0)) })
-                         .sortedByDescending { it.third }
-                         .filter { searchQuery.isBlank() || it.first.contains(searchQuery, ignoreCase = true) || it.second.contains(searchQuery, ignoreCase = true) }
+        (snapshot.expenses.map { ActivityItem(it.id, true, it.merchant, it.category, -(it.amount.toDoubleOrNull() ?: 0.0)) } +
+                         snapshot.capitals.map { ActivityItem(it.id, false, it.source, "Capital", it.amount.toDoubleOrNull() ?: 0.0) })
+                         .sortedByDescending { it.amount }
+                         .filter { searchQuery.isBlank() || it.title.contains(searchQuery, ignoreCase = true) || it.category.contains(searchQuery, ignoreCase = true) }
     }
 
     val categories = snapshot.expenses.map { it.category }.distinct()
@@ -740,19 +743,25 @@ private fun ExpensesScreen(snapshot: LifeOsSnapshot, repository: LifeOsRepositor
             Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
                 Column(Modifier.padding(horizontal = 18.dp, vertical = 12.dp)) {
                     Text("Recent activity", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    allActivity.forEach { (title, category, amount) ->
-                        val isExpense = amount != null && amount < 0
-                        val displayAmount = amount?.let { Math.abs(it) } ?: 0.0
-                        Row(Modifier.fillMaxWidth().padding(vertical = 14.dp).clickable { if (isExpense && amount != null) {
-                            val expense = snapshot.expenses.first { it.merchant == title && it.category == category && it.amount == displayAmount.toString() }
-                            editingExpense = expense
-                        }}, horizontalArrangement = Arrangement.SpaceBetween) {
-                            Column { Text(title, fontWeight = FontWeight.SemiBold); Text(category, color = Color(0xFF63706A), style = MaterialTheme.typography.labelMedium) };
+                    allActivity.forEach { item ->
+                        val isExpense = item.isExpense
+                        val displayAmount = Math.abs(item.amount)
+                        Row(Modifier.fillMaxWidth().clickable {
+                            if (isExpense) editingExpense = snapshot.expenses.firstOrNull { it.id == item.id }
+                            else editingCapital = snapshot.capitals.firstOrNull { it.id == item.id }
+                        }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) { Text(item.title, fontWeight = FontWeight.SemiBold); Text(item.category, color = Color(0xFF63706A), style = MaterialTheme.typography.labelMedium) }
                             Text(
                                 (if (isExpense) "-" else "+") + formatLifeOsAmount(displayAmount.toString(), currency),
                                 fontWeight = FontWeight.Bold,
                                 color = if (isExpense) Coral else Moss
                             )
+                            IconButton(onClick = {
+                                repository.updateSnapshot { snap ->
+                                    if (isExpense) snap.copy(expenses = snap.expenses.filter { it.id != item.id })
+                                    else snap.copy(capitals = snap.capitals.filter { it.id != item.id })
+                                }
+                            }) { Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFF63706A)) }
                         }
                         HorizontalDivider(color = Color(0xFFE3E8E3))
                     }
@@ -776,6 +785,12 @@ private fun ExpensesScreen(snapshot: LifeOsSnapshot, repository: LifeOsRepositor
         LifeOsEntryDialog("Add capital", listOf("Source", "Amount"), { showAddCapital = false }) { values ->
             repository.updateSnapshot { it.copy(capitals = it.capitals + LifeOsCapital("capital-${System.currentTimeMillis()}", values[0], values[1])) }
             showAddCapital = false
+        }
+    }
+    editingCapital?.let { capital ->
+        LifeOsEntryDialog("Edit capital", listOf("Source", "Amount"), { editingCapital = null }, listOf(capital.source, capital.amount)) { values ->
+            repository.updateSnapshot { snap -> snap.copy(capitals = snap.capitals.map { if (it.id == capital.id) it.copy(source = values[0], amount = values[1]) else it }) }
+            editingCapital = null
         }
     }
     if (showCurrencyDialog) {
@@ -1220,8 +1235,8 @@ private fun stateToMillis(state: androidx.compose.material3.TimePickerState, sel
 }
 
 @Composable
-private fun LifeOsEntryDialog(title: String, fields: List<String>, onDismiss: () -> Unit, onSave: (List<String>) -> Unit) {
-    var values by remember(fields) { mutableStateOf(fields.map { "" }) }
+private fun LifeOsEntryDialog(title: String, fields: List<String>, onDismiss: () -> Unit, initialValues: List<String>? = null, onSave: (List<String>) -> Unit) {
+    var values by remember(fields) { mutableStateOf(initialValues ?: fields.map { "" }) }
     val complete = values.all { it.isNotBlank() }
     AlertDialog(
         onDismissRequest = onDismiss,
