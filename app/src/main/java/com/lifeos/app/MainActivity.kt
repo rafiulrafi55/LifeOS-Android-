@@ -98,6 +98,24 @@ private object AppTheme {
     var amoled by mutableStateOf(false)
 }
 
+private fun splashThemeRes(context: Context): Int {
+    val prefs = context.getSharedPreferences("lifeos_theme", Context.MODE_PRIVATE)
+    return when {
+        !prefs.getBoolean("dark", false) -> R.style.Theme_LifeOS_Splash
+        prefs.getBoolean("amoled", false) -> R.style.Theme_LifeOS_Splash_Amoled
+        else -> R.style.Theme_LifeOS_Splash_Dark
+    }
+}
+
+// Remembers the theme so the next cold start can show a matching splash screen.
+private fun rememberSplashTheme(context: Context, dark: Boolean, amoled: Boolean) {
+    context.applicationContext.getSharedPreferences("lifeos_theme", Context.MODE_PRIVATE)
+        .edit().putBoolean("dark", dark).putBoolean("amoled", amoled).apply()
+    if (android.os.Build.VERSION.SDK_INT >= 33 && context is Activity) {
+        context.splashScreen.setSplashScreenTheme(splashThemeRes(context))
+    }
+}
+
 private val Ink: Color get() = if (AppTheme.dark) Color(0xFFECE9E4) else Color(0xFF1C2824)
 private val Moss = Color(0xFF2E6B58)
 private val Coral = Color(0xFFE67B62)
@@ -124,6 +142,7 @@ class MainActivity : ComponentActivity() {
     private var requestedModule by androidx.compose.runtime.mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        setTheme(splashThemeRes(applicationContext))
         installSplashScreen()
         super.onCreate(savedInstanceState)
 
@@ -171,6 +190,7 @@ private fun LifeOsApp(repository: LifeOsRepository, authRepository: AuthReposito
             signedIn = isSignedIn
             AppTheme.dark = isSignedIn && authRepository.currentUserId?.let { ProfileStore(context).readDarkMode(it) } == true
             AppTheme.amoled = isSignedIn && authRepository.currentUserId?.let { ProfileStore(context).readAmoled(it) } == true
+                        rememberSplashTheme(context, AppTheme.dark, AppTheme.amoled)
         }
         onDispose { authRepository.removeAuthStateListener(listener) }
     }
@@ -934,6 +954,7 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
         ThemeScreen(onBack = { showTheme = false }) { enabled, amoled ->
             AppTheme.dark = enabled
             AppTheme.amoled = amoled
+            rememberSplashTheme(context ?: return@ThemeScreen, enabled, amoled)
             userId?.let { profileStore?.saveDarkMode(it, enabled); profileStore?.saveAmoled(it, amoled) }
         }
         return
