@@ -976,9 +976,9 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
         val appVersion = remember {
             try {
                 val pInfo = currentContext.packageManager.getPackageInfo(currentContext.packageName, 0)
-                pInfo.versionName ?: "0.1.6b"
+                pInfo.versionName ?: "0.1.7b"
             } catch (e: Exception) {
-                "0.1.6b"
+                "0.1.7b"
             }
         }
         Text(
