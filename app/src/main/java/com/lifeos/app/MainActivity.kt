@@ -106,6 +106,7 @@ private const val GoogleWebClientId = "294255605490-dn0l52gqv0n28um5pgukvuqnanrn
 class MainActivity : ComponentActivity() {
     private val repository: LifeOsRepository by lazy { FirebaseLifeOsRepository(applicationContext) }
     private val authRepository by lazy { AuthRepository(applicationContext) }
+    private var requestedModule by androidx.compose.runtime.mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
@@ -121,7 +122,14 @@ class MainActivity : ComponentActivity() {
         val notificationManager = LifeOsNotificationManager(applicationContext)
         notificationManager.scheduleMorningEventNotifications(applicationContext, "")
 
-        setContent { LifeOsApp(repository, authRepository) }
+        requestedModule = intent?.getStringExtra(LifeOsNotificationManager.EXTRA_OPEN_MODULE)
+        setContent { LifeOsApp(repository, authRepository, requestedModule) { requestedModule = null } }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        requestedModule = intent.getStringExtra(LifeOsNotificationManager.EXTRA_OPEN_MODULE)
     }
 
     override fun onResume() {
@@ -140,7 +148,7 @@ private enum class LifeOsModule(val label: String, val icon: ImageVector) {
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun LifeOsApp(repository: LifeOsRepository, authRepository: AuthRepository) {
+private fun LifeOsApp(repository: LifeOsRepository, authRepository: AuthRepository, requestedModule: String?, onModuleHandled: () -> Unit) {
     var signedIn by remember { mutableStateOf(authRepository.isSignedIn) }
     DisposableEffect(authRepository) {
         val listener = authRepository.addAuthStateListener { signedIn = it }
@@ -153,6 +161,10 @@ private fun LifeOsApp(repository: LifeOsRepository, authRepository: AuthReposito
     }
 
     var selectedModule by remember { mutableStateOf(LifeOsModule.Dashboard) }
+    androidx.compose.runtime.LaunchedEffect(requestedModule) {
+        LifeOsModule.entries.firstOrNull { it.name == requestedModule }?.let { selectedModule = it }
+        if (requestedModule != null) onModuleHandled()
+    }
     val snapshot by repository.observeSnapshot().collectAsState(
         initial = LifeOsSnapshot(emptyList(), emptyList(), emptyList(), emptyList(), emptyList())
     )
@@ -976,9 +988,9 @@ private fun ProfileScreen(authRepository: AuthRepository? = null, repository: Li
         val appVersion = remember {
             try {
                 val pInfo = currentContext.packageManager.getPackageInfo(currentContext.packageName, 0)
-                pInfo.versionName ?: "0.1.7b"
+                pInfo.versionName ?: "0.1.8b"
             } catch (e: Exception) {
-                "0.1.7b"
+                "0.1.8b"
             }
         }
         Text(

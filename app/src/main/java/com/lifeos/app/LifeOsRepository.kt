@@ -113,7 +113,6 @@ class FirebaseLifeOsRepository(context: Context) : LifeOsRepository {
             val userId = authState.currentUser?.uid
             if (userId != null) {
                 snapshot.value = localStore.readSnapshot(userId, fallbackSnapshot())
-                observeTasks(userId)
             } else {
                 snapshot.value = fallbackSnapshot()
             }
@@ -131,7 +130,7 @@ class FirebaseLifeOsRepository(context: Context) : LifeOsRepository {
         auth.currentUser?.uid?.let { userId ->
             localStore.saveSnapshot(userId, updated)
             firestore.collection("users").document(userId).collection("tasks").document(taskId)
-                .set(mapOf("title" to task.title, "dueLabel" to task.dueLabel, "completed" to !task.completed))
+                .set(mapOf("title" to task.title, "dueLabel" to task.dueLabel, "completed" to !task.completed, "dueTimestamp" to task.dueTimestamp))
         }
     }
 
@@ -160,7 +159,7 @@ class FirebaseLifeOsRepository(context: Context) : LifeOsRepository {
             "notificationsEnabled" to profile.notificationsEnabled,
             "lastSyncedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
         ), com.google.firebase.firestore.SetOptions.merge())
-        syncCollection(batch, userDocument, "tasks", snapshot.value.tasks.map { it.id to mapOf("title" to it.title, "dueLabel" to it.dueLabel, "completed" to it.completed) })
+        syncCollection(batch, userDocument, "tasks", snapshot.value.tasks.map { it.id to mapOf("title" to it.title, "dueLabel" to it.dueLabel,         "completed" to it.completed, "dueTimestamp" to it.dueTimestamp) })
         syncCollection(batch, userDocument, "events", snapshot.value.events.map { it.id to mapOf("title" to it.title, "timeLabel" to it.timeLabel, "colorKey" to it.colorKey) })
         syncCollection(batch, userDocument, "notes", snapshot.value.notes.map { it.id to mapOf("title" to it.title, "preview" to it.preview, "updatedLabel" to it.updatedLabel) })
         syncCollection(batch, userDocument, "expenses", snapshot.value.expenses.map { it.id to mapOf("merchant" to it.merchant, "category" to it.category, "amount" to it.amount, "timestamp" to it.timestamp) })

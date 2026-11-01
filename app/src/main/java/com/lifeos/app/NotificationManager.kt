@@ -31,6 +31,20 @@ class LifeOsNotificationManager(private val context: Context) {
         const val NOTIFICATION_ID_TASK_BASE = 2000
         const val NOTIFICATION_ID_EVENT_BASE = 3000
         const val NOTIFICATION_ID_REMINDER_BASE = 4000
+
+        const val EXTRA_OPEN_MODULE = "com.lifeos.app.OPEN_MODULE"
+        const val MODULE_MONEY = "Expenses"
+        const val MODULE_TASKS = "Tasks"
+        const val MODULE_CALENDAR = "Calendar"
+        const val MODULE_REMINDERS = "Reminders"
+    }
+
+    private fun openModuleIntent(module: String, requestCode: Int): PendingIntent {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(EXTRA_OPEN_MODULE, module)
+        }
+        return PendingIntent.getActivity(context, requestCode, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     }
 
     init {
@@ -85,12 +99,7 @@ class LifeOsNotificationManager(private val context: Context) {
             return
         }
 
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-        }
-        val pendingIntent = PendingIntent.getActivity(
-            context, 0, intent, PendingIntent.FLAG_IMMUTABLE
-        )
+        val pendingIntent = openModuleIntent(MODULE_MONEY, NOTIFICATION_ID_BUDGET)
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID_BUDGET)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
@@ -110,10 +119,7 @@ class LifeOsNotificationManager(private val context: Context) {
             return
         }
 
-        val intent = Intent(context, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            context, taskId, intent, PendingIntent.FLAG_IMMUTABLE
-        )
+        val pendingIntent = openModuleIntent(MODULE_TASKS, NOTIFICATION_ID_TASK_BASE + taskId)
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID_TASKS)
             .setSmallIcon(android.R.drawable.ic_menu_today)
@@ -133,10 +139,7 @@ class LifeOsNotificationManager(private val context: Context) {
             return
         }
 
-        val intent = Intent(context, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            context, eventId, intent, PendingIntent.FLAG_IMMUTABLE
-        )
+        val pendingIntent = openModuleIntent(MODULE_CALENDAR, NOTIFICATION_ID_EVENT_BASE + eventId)
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID_EVENTS)
             .setSmallIcon(android.R.drawable.ic_menu_my_calendar)
@@ -156,10 +159,7 @@ class LifeOsNotificationManager(private val context: Context) {
             return
         }
 
-        val intent = Intent(context, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            context, reminderId, intent, PendingIntent.FLAG_IMMUTABLE
-        )
+        val pendingIntent = openModuleIntent(MODULE_REMINDERS, NOTIFICATION_ID_REMINDER_BASE + reminderId)
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID_REMINDERS)
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
