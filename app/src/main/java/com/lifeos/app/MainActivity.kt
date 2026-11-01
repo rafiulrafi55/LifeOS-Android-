@@ -180,6 +180,7 @@ private fun LifeOsApp(repository: LifeOsRepository, authRepository: AuthReposito
         Scaffold(
             containerColor = Sand,
             bottomBar = {
+                androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalRippleConfiguration provides null) {
                 NavigationBar(modifier = Modifier.padding(horizontal = 8.dp), containerColor = Color.White, tonalElevation = 0.dp) {
                     LifeOsModule.entries.forEach { module ->
                         NavigationBarItem(
@@ -199,6 +200,7 @@ private fun LifeOsApp(repository: LifeOsRepository, authRepository: AuthReposito
                             colors = androidx.compose.material3.NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent)
                         )
                     }
+                }
                 }
             }
         ) { paddingValues ->
